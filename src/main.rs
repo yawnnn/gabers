@@ -1,8 +1,10 @@
+mod codegen;
 mod common;
-mod instructions;
-mod registers;
-mod gpu;
 mod cpu;
+mod gpu;
+mod instructions;
+mod memory;
+mod registers;
 
 fn main() {
     todo!()

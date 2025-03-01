@@ -1,11 +1,7 @@
-#![allow(unused)]
+use std::ops::Range;
 
-pub const TILE_COUNT: usize = 384;
-pub const VRAM_BEG: u16 = 1;
-pub const VRAM_SIZE: usize = 1;
-pub const VRAM_END: u16 = VRAM_BEG + VRAM_SIZE as u16;
-pub const PIXEL_COUNT: usize = 1;
-pub const ROM_BEG: usize = 0x0;
-pub const ROM_END: usize = 0x100;
-pub const GAME_ROM_BEG: usize = 0x100;
-pub const GAME_ROM_END: usize = 0x3FFF;
+/// span of `Range<usize>`
+/// because i want it `const` as of today i can't make it more generic or ergonomic w/out unstable (it seems)
+pub const fn span(r: Range<usize>) -> usize {
+    r.end - r.start
+}
