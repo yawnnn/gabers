@@ -22,73 +22,89 @@ pub enum Reg16 {
     BC,
     DE,
     HL,
-    SP,
+}
+
+impl Reg16 {
+    fn to_le_reg8(self) -> [Reg8; 2] {
+        match self {
+            Reg16::AF => [Reg8::A, Reg8::F],
+            Reg16::BC => [Reg8::B, Reg8::C],
+            Reg16::DE => [Reg8::D, Reg8::E],
+            Reg16::HL => [Reg8::H, Reg8::L],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct SP;
+
+#[derive(Debug, Clone, Copy)]
 pub enum Flag {
-    /// Used by conditional jumps and instructions such as ADC, SBC, RL, RLA, etc.
-    /// Is set in these cases:
+    /// Carry flag  
+    /// Used by conditional jumps and instructions such as ADC, SBC, RL, RLA, etc.  
+    /// Is set in these cases:  
     /// - When the result of an 8-bit addition is higher than $FF.
     /// - When the result of a 16-bit addition is higher than $FFFF.
     /// - When the result of a subtraction or comparison is lower than zero (like in Z80 and x86 CPUs, but unlike in 65XX and ARM CPUs).
     /// - When a rotate/shift operation shifts out a “1” bit.
-    Carry,
+    CF,
 
-    /// These flags are used by the DAA instruction only.
-    /// N indicates whether the previous instruction has been a subtraction, and H indicates carry for the lower 4 bits of the result.
-    /// DAA also uses the C flag, which must indicate carry for the upper 4 bits.
-    /// After adding/subtracting two BCD numbers, DAA is used to convert the result to BCD format.
-    /// BCD numbers range from $00 to $99 rather than $00 to $FF.
-    /// Because only two flags (C and H) exist to indicate carry-outs of BCD digits,
-    /// DAA is ineffective for 16-bit operations (which have 4 digits), and use for INC/DEC operations (which do not affect C-flag) has limits.
-    HalfCarry,
-    Subtraction,
+    /// Half-carry flag  
+    /// These flags are used by the DAA instruction only.  
+    /// indicates carry for the lower 4 bits of the result.  
+    HF,
 
-    /// Is set if and only if the result of an operation is zero. Used by conditional jumps.
-    Zero,
+    /// Subtraction flag  
+    /// These flags are used by the DAA instruction only.  
+    /// Indicates whether the previous instruction has been a subtraction.  
+    NF,
+
+    /// Zero flag  
+    /// Is set if and only if the result of an operation is zero. Used by conditional jumps.  
+    ZF,
 }
 
-impl From<Flag> for u8 {
-    fn from(value: Flag) -> Self {
-        match value {
-            Flag::Carry => 1 << 4,
-            Flag::HalfCarry => 1 << 5,
-            Flag::Subtraction => 1 << 6,
-            Flag::Zero => 1 << 7,
+impl Flag {
+    /// Get corresponding bit-mask
+    pub fn get_mask(&self) -> u8 {
+        match *self {
+            Flag::CF => 1 << 4,
+            Flag::HF => 1 << 5,
+            Flag::NF => 1 << 6,
+            Flag::ZF => 1 << 7,
         }
     }
 }
 
-impl From<u8> for Flag {
-    fn from(value: u8) -> Self {
-        match value {
-            b if b == 1 << 4 => Flag::Carry,
-            b if b == 1 << 5 => Flag::HalfCarry,
-            b if b == 1 << 6 => Flag::Subtraction,
-            b if b == 1 << 7 => Flag::Zero,
-            _ => panic!(),
-        }
+// impl From<Flag> for u8 {
+//     #[rustfmt::skip]
+//     fn from(value: Flag) -> Self {
+//         match value {
+//             Flag::CF => 1 << 4,
+//             Flag::HF => 1 << 5,
+//             Flag::NF => 1 << 6,
+//             Flag::ZF => 1 << 7,
+//         }
+//     }
+// }
+
+pub struct FlagsRegister(u8);
+
+impl FlagsRegister {
+    fn get(&self, flag: Flag) -> bool {
+        self.0 & flag.get_mask() != 0
     }
-}
 
-pub struct FlagReg(u8);
-
-impl FlagReg {
-    pub fn get(&self, flag: Flag) -> bool {
-        self.0 & u8::from(flag) != 0
-    }
-
-    pub fn set(&mut self, flag: Flag, value: bool) {
+    fn set(&mut self, flag: Flag, value: bool) {
         if value {
-            self.0 |= u8::from(flag);
+            self.0 |= flag.get_mask();
         } else {
-            self.0 &= !u8::from(flag);
+            self.0 &= !flag.get_mask();
         }
     }
 
-    pub fn toggle(&mut self, flag: Flag) {
-        self.0 ^= u8::from(flag)
+    fn toggle(&mut self, flag: Flag) {
+        self.0 ^= flag.get_mask()
     }
 
     fn inner(&self) -> u8 {
@@ -100,17 +116,30 @@ impl FlagReg {
     }
 }
 
+/// Implement getter and setter for flag
+macro_rules! flag_impl {
+    ($flag:ident, $getter:ident, $setter:ident) => {
+        pub fn $getter(&self) -> bool {
+            self.f.get(Flag::$flag)
+        }
+
+        pub fn $setter(&mut self, fg: bool) {
+            self.f.set(Flag::$flag, fg);
+        }
+    };
+}
+
 pub struct Registers {
-    pub pc: u16,
-    pub sp: u16,
-    pub a: u8,
-    pub b: u8,
-    pub c: u8,
-    pub d: u8,
-    pub e: u8,
-    pub f: FlagReg,
-    pub h: u8,
-    pub l: u8,
+    pc: u16,
+    sp: u16,
+    a: u8,
+    b: u8,
+    c: u8,
+    d: u8,
+    e: u8,
+    f: FlagsRegister,
+    h: u8,
+    l: u8,
 }
 
 impl Registers {
@@ -141,36 +170,42 @@ impl Registers {
     }
 
     pub fn read16(&self, reg: Reg16) -> u16 {
-        match reg {
-            Reg16::AF => u16::from_le_bytes([self.f.inner(), self.a]),
-            Reg16::BC => u16::from_le_bytes([self.c, self.b]),
-            Reg16::DE => u16::from_le_bytes([self.e, self.d]),
-            Reg16::HL => u16::from_le_bytes([self.l, self.h]),
-            Reg16::SP => self.sp,
-        }
+        let [reg_lo, reg_hi] = Reg16::to_le_reg8(reg);
+        let lo = self.read8(reg_lo);
+        let hi = self.read8(reg_hi);
+
+        u16::from_le_bytes([lo, hi])
     }
 
     pub fn write16(&mut self, reg: Reg16, word: u16) {
-        let [low, high] = u16::to_le_bytes(word);
+        let [lo, hi] = u16::to_le_bytes(word);
+        let [reg_lo, reg_hi] = Reg16::to_le_reg8(reg);
 
-        match reg {
-            Reg16::AF => {
-                self.a = high;
-                self.f.set_inner(low);
-            }
-            Reg16::BC => {
-                self.b = high;
-                self.c = low
-            }
-            Reg16::DE => {
-                self.d = high;
-                self.e = low
-            }
-            Reg16::HL => {
-                self.h = high;
-                self.l = low
-            }
-            Reg16::SP => self.sp = word,
-        }
+        self.write8(reg_lo, lo);
+        self.write8(reg_hi, hi);
+    }
+
+    pub fn flag(&self, flag: Flag) -> bool {
+        self.f.get(flag)
+    }
+
+    pub fn set_flag(&mut self, flag: Flag, value: bool) {
+        self.f.set(flag, value);
+    }
+
+    pub fn sp(&self) -> u16 {
+        self.sp
+    }
+
+    pub fn set_sp(&mut self, word: u16) {
+        self.sp = word;
+    }
+
+    pub fn pc(&self) -> u16 {
+        self.pc
+    }
+
+    pub fn set_pc(&mut self, word: u16) {
+        self.pc = word;
     }
 }

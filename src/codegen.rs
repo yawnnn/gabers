@@ -39,6 +39,7 @@ mod tests {
     pub enum Mem {
         Reg8(Reg8),
         Reg16(Reg16),
+        SP,
         Imm8,
         Imm16,
         Imm8S,
@@ -58,21 +59,22 @@ mod tests {
             match self {
                 &Mem::Reg8(reg) => cpu.regs.read8(reg) as u16,
                 &Mem::Reg16(reg) => cpu.regs.read16(reg),
+                Mem::SP => cpu.regs.sp(),
                 Mem::Imm8 => cpu.fetch8() as u16,
                 Mem::Imm8S => cpu.fetch8() as u16,
                 Mem::Imm16 => cpu.fetch16(),
                 Mem::Addr8(mem) => {
                     let addr = mem.read(cpu);
-                    cpu.bus.read8(addr) as u16
+                    cpu.ram.read8(addr) as u16
                 }
                 Mem::Addr16(mem) => {
                     let addr = mem.read(cpu);
-                    let lo = cpu.bus.read8(addr);
-                    let hi = cpu.bus.read8(addr.wrapping_add(1));
+                    let lo = cpu.ram.read8(addr);
+                    let hi = cpu.ram.read8(addr.wrapping_add(1));
                     u16::from_le_bytes([lo, hi])
                 }
-                &Mem::Flag(flag) => cpu.regs.f.get(flag) as u16,
-                &Mem::NoFlag(flag) => !cpu.regs.f.get(flag) as u16,
+                &Mem::Flag(flag) => cpu.regs.flag(flag) as u16,
+                &Mem::NoFlag(flag) => !cpu.regs.flag(flag) as u16,
                 Mem::Bit(bit, mem) => mem.read(cpu) & (1 << bit),
                 Mem::Rst(_) => todo!(),
                 Mem::HLI => {
@@ -89,7 +91,7 @@ mod tests {
                 }
                 Mem::SPMod(off) => {
                     let off = off.as_ref().unwrap().read(cpu);
-                    let value = Mem::Reg16(Reg16::SP).read(cpu);
+                    let value = Mem::SP.read(cpu);
 
                     value.wrapping_add(off)
                 }
@@ -100,22 +102,23 @@ mod tests {
             match self {
                 &Mem::Reg8(reg) => cpu.regs.write8(reg, value as u8),
                 &Mem::Reg16(reg) => cpu.regs.write16(reg, value),
+                Mem::SP => cpu.regs.set_sp(value),
                 Mem::Imm8 | Mem::Imm16 | Mem::Imm8S => {
                     panic!("Can't write to immediate value");
                 }
                 Mem::Addr8(mem) => {
                     let addr = mem.read(cpu);
                     let [lo, _] = u16::to_le_bytes(value);
-                    cpu.bus.write8(addr, lo);
+                    cpu.ram.write8(addr, lo);
                 }
                 Mem::Addr16(mem) => {
                     let addr = mem.read(cpu);
                     let [lo, hi] = u16::to_le_bytes(value);
-                    cpu.bus.write8(addr, lo);
-                    cpu.bus.write8(addr.wrapping_add(1), hi);
+                    cpu.ram.write8(addr, lo);
+                    cpu.ram.write8(addr.wrapping_add(1), hi);
                 }
                 &Mem::Flag(flag) => {
-                    cpu.regs.f.set(flag, true);
+                    cpu.regs.set_flag(flag, true);
                 }
                 Mem::Bit(bit, mem) => {
                     let old = mem.read(cpu);
@@ -142,7 +145,7 @@ mod tests {
                 | Mem::HLI
                 | Mem::HLD
                 | Mem::SPMod(_) => 1,
-                Mem::Reg16(_) | Mem::Imm16 => 2,
+                Mem::Reg16(_) | Mem::Imm16 | Mem::SP => 2,
                 Mem::Rst(_) => 1,
             }
         }
@@ -211,7 +214,7 @@ mod tests {
             "B" => Mem::Reg8(Reg8::B),
             "C" => {
                 if instr.takes_flag_cond() {
-                    Mem::Flag(Flag::Carry)
+                    Mem::Flag(Flag::CF)
                 } else {
                     Mem::Reg8(Reg8::C)
                 }
@@ -223,9 +226,9 @@ mod tests {
             "L" => Mem::Reg8(Reg8::L),
 
             //"C" => Mem::Flag(Flag::Carry),   todo!() --- distinguish from C register
-            "NC" => Mem::NoFlag(Flag::Carry),
-            "Z" => Mem::Flag(Flag::Zero),
-            "NZ" => Mem::NoFlag(Flag::Zero),
+            "NC" => Mem::NoFlag(Flag::CF),
+            "Z" => Mem::Flag(Flag::NF),
+            "NZ" => Mem::NoFlag(Flag::NF),
 
             "AF" => Mem::Reg16(Reg16::AF),
             "BC" => Mem::Reg16(Reg16::BC),
@@ -246,7 +249,7 @@ mod tests {
                     done_inc = true;
                     Mem::SPMod(None)
                 } else {
-                    Mem::Reg16(Reg16::SP)
+                    Mem::SP
                 }
             }
 

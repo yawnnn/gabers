@@ -4,7 +4,7 @@ use std::ops::Range;
 
 /*
  * Memory map
-*/
+ */
 pub const MM_ROM_0: Range<usize> = 0x0000..0x3FFF + 1; // 16 KiB ROM bank 00 - From cartridge, usually a fixed bank
 pub const MM_ROM_N: Range<usize> = 0x4000..0x7FFF + 1; // 16 KiB ROM Bank 01–NN - From cartridge, switchable bank via mapper (if any)
 pub const MM_VRAM: Range<usize> = 0x8000..0x9FFF + 1; // 8 KiB Video RAM (VRAM) - In CGB mode, switchable bank 0/1
@@ -20,7 +20,7 @@ pub const MM_IE_REGS: Range<usize> = 0xFFFF..0xFFFF + 1; // Interrupt Enable reg
 
 /*
  * I/O Ranges
-*/
+ */
 pub const IO_JOYPAD: Range<usize> = 0xFF00..0xFF00 + 1; // Joypad input
 pub const IO_SERIAL: Range<usize> = 0xFF01..0xFF02 + 1; // Serial transfer
 pub const IO_TIMER_DIV: Range<usize> = 0xFF04..0xFF07 + 1; // Timer and divider
@@ -36,7 +36,7 @@ pub const IO_WRAM_BLANK: Range<usize> = 0xFF70..0xFF70 + 1; // WRAM Bank Select
 
 /*
  * VRAM
-*/
+ */
 pub const VRAM_TILES: Range<usize> = 0x000..0x180; // 0..384 - 16bit each, viewed in 3 groups of 128 - ID of tile = address / 16 mod 256.
 pub const VRAM_MAP0: Range<usize> = 0x180..0x57A; // 384..1408 - to get corresponding tile X = address mod 32; Y = address / 32 mod 32
 pub const VRAM_MAP1: Range<usize> = 0x57A..0x980; // 1408..2432
@@ -50,17 +50,17 @@ pub const VRAM_MAP1: Range<usize> = 0x57A..0x980; // 1408..2432
  *
  * RST instructions: 0x0000, 0x0008, 0x0010, 0x0018, 0x0020, 0x0028, 0x0030, 0x0038
  * Interrupts: 0x0040, 0x0048, 0x0050, 0x0058, 0x0060
-*/
+ */
 pub const JUMP_VECTORS: Range<usize> = 0x0000..0x00FF;
 
 /*
  * Cartridge header
-*/
+ */
 pub const CARTRIDGE_HEADER: Range<usize> = 0x0100..0x014F;
 
 /*
  * Hardware registers
-*/
+ */
 pub const HWREG_JOYP: usize = 0xFF00; // Joypad - Mixed
 pub const HWREG_SB: usize = 0xFF01; // Serial transfer data - R/W
 pub const HWREG_SC: usize = 0xFF02; // Serial transfer control - R/W
