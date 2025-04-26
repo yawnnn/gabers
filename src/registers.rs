@@ -88,6 +88,7 @@ impl Flag {
 //     }
 // }
 
+#[derive(Default, Debug, Clone, Copy)]
 pub struct FlagsRegister(u8);
 
 impl FlagsRegister {
@@ -129,6 +130,7 @@ macro_rules! flag_impl {
     };
 }
 
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Registers {
     pc: u16,
     sp: u16,

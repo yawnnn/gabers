@@ -1017,5 +1017,10 @@ impl Cpu {
     // - - - -
     fn noop(&self) {}
 
-    // TODO: STOP
+    // STOP
+    // Z N H C
+    // - - - -
+    fn stop(&mut self) {
+        panic!("STOP")
+    }
 }

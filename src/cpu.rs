@@ -11,15 +11,25 @@ use crate::instructions::*;
 use crate::memory::*;
 use crate::registers::*;
 
+#[derive(Clone, Copy, Debug)]
 pub struct MemoryBus {
-    memory: [u8; u16::MAX as usize],
-    gpu: Gpu,
+    pub memory: [u8; u16::MAX as usize],
+    pub gpu: Gpu,
+}
+
+impl Default for MemoryBus {
+    fn default() -> Self {
+        MemoryBus {
+            memory: [0; u16::MAX as usize],
+            gpu: Default::default(),
+        }
+    }
 }
 
 impl MemoryBus {
     pub fn read8(&self, addr: u16) -> u8 {
         if MM_VRAM.contains(&(addr as usize)) {
-            self.gpu.read8(addr)
+            self.gpu.read8(addr as usize - MM_VRAM.start)
         } else {
             self.memory[addr as usize]
         }
@@ -27,7 +37,7 @@ impl MemoryBus {
 
     pub fn write8(&mut self, addr: u16, value: u8) {
         if MM_VRAM.contains(&(addr as usize)) {
-            self.gpu.write8(addr, value);
+            self.gpu.write8(addr as usize - MM_VRAM.start, value);
         } else {
             self.memory[addr as usize] = value;
         }
@@ -47,6 +57,7 @@ impl MemoryBus {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Cpu {
     pub pc: u16,
     pub sp: u16,
@@ -55,30 +66,6 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    // pub fn read8_mem(&self, addr: u16) -> u8 {
-    //     self.ram.read8(addr)
-    // }
-
-    // pub fn write8_mem(&mut self, addr: u16, value: u8) {
-    //     self.ram.write8(addr, value);
-    // }
-
-    // pub fn read8_reg(&self, reg: Reg8) -> u8 {
-    //     self.regs.read8(reg)
-    // }
-
-    // pub fn write8_reg(&mut self, reg: Reg8, value: u8) {
-    //     self.regs.write8(reg, value);
-    // }
-
-    // pub fn read16_reg(&self, reg: Reg16) -> u16 {
-    //     self.regs.read16(reg)
-    // }
-
-    // pub fn write16_reg(&mut self, reg: Reg16, value: u16) {
-    //     self.regs.write16(reg, value);
-    // }
-
     pub fn fetch8(&mut self) -> u8 {
         let byte = self.ram.read8(self.pc);
         self.pc = self.pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
@@ -91,14 +78,6 @@ impl Cpu {
         let hi = self.fetch8();
 
         u16::from_le_bytes([lo, hi])
-    }
-
-    fn ex(&mut self) {
-        todo!()
-    }
-
-    fn ex2(&mut self) {
-        todo!()
     }
 
     fn exec(&mut self, instr: Instruction) -> u16 {
@@ -117,11 +96,12 @@ impl Cpu {
         Opcode { byte, extended }
     }
 
-    fn step(&mut self) {
+    pub fn step(&mut self) -> usize {
         let opcode = self.read_op(self.pc);
         let instr = todo!();
         let next_pc = self.exec(instr);
         self.pc = next_pc;
+        1
     }
 
     // Z N H C

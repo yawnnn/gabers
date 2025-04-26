@@ -1,6 +1,13 @@
-#![allow(unused)]
 
+#![allow(unused)]
 use std::ops::Range;
+
+/*
+ * Screen
+ */
+pub const SCREEN_WIDTH: usize = 160;
+pub const SCREEN_HEIGHT: usize = 144;
+
 
 /*
  * Memory map
@@ -40,6 +47,12 @@ pub const IO_WRAM_BLANK: Range<usize> = 0xFF70..0xFF70 + 1; // WRAM Bank Select
 pub const VRAM_TILES: Range<usize> = 0x000..0x180; // 0..384 - 16bit each, viewed in 3 groups of 128 - ID of tile = address / 16 mod 256.
 pub const VRAM_MAP0: Range<usize> = 0x180..0x57A; // 384..1408 - to get corresponding tile X = address mod 32; Y = address / 32 mod 32
 pub const VRAM_MAP1: Range<usize> = 0x57A..0x980; // 1408..2432
+//pub const VRAM_TILESET1_1: Range<usize> = 0x8000..0x87FF; // First part of tile set #1
+//pub const VRAM_TILESET_SHARED: Range<usize> = 0x8800..0x8FFF; // Second part of tile set #1, First part of tile set #2
+//pub const VRAM_TILESET2_2: Range<usize> = 0x9000..0x97FF; // Second part of tile set #2
+//pub const _VRAM_TILES: Range<usize> = 0x8000..0x97FF;
+//pub const VRAM_TILE_IND_1: Range<usize> = 0x9800..0x9BFF;
+//pub const VRAM_TILE_IND_2: Range<usize> = 0x9C00..0x9FFF;
 
 // Map block as a bitmap
 // | 15 | 14 | 13 | 12 | 11 |      10 | 9 8 7 6 5 | 4 3 2 1 0 |
@@ -56,7 +69,10 @@ pub const JUMP_VECTORS: Range<usize> = 0x0000..0x00FF;
 /*
  * Cartridge header
  */
+//pub const BOOT_ROM: Range<usize> = 0x0000..0x00FF;
+//pub const INTERRUPT_TABLE: Range<usize> = 0x0000..0x00FF;
 pub const CARTRIDGE_HEADER: Range<usize> = 0x0100..0x014F;
+//pub const CARTRIDGE_BODY: Range<usize> = 0x014F..0x3FFF;
 
 /*
  * Hardware registers
