@@ -11,64 +11,17 @@ use crate::instructions::*;
 use crate::memory::*;
 use crate::registers::*;
 
-#[derive(Clone, Copy, Debug)]
-pub struct MemoryBus {
-    pub memory: [u8; u16::MAX as usize],
-    pub gpu: Gpu,
-}
-
-impl Default for MemoryBus {
-    fn default() -> Self {
-        MemoryBus {
-            memory: [0; u16::MAX as usize],
-            gpu: Default::default(),
-        }
-    }
-}
-
-impl MemoryBus {
-    pub fn read8(&self, addr: u16) -> u8 {
-        if MM_VRAM.contains(&(addr as usize)) {
-            self.gpu.read8(addr as usize - MM_VRAM.start)
-        } else {
-            self.memory[addr as usize]
-        }
-    }
-
-    pub fn write8(&mut self, addr: u16, value: u8) {
-        if MM_VRAM.contains(&(addr as usize)) {
-            self.gpu.write8(addr as usize - MM_VRAM.start, value);
-        } else {
-            self.memory[addr as usize] = value;
-        }
-    }
-
-    pub fn read16(&self, addr: u16) -> u16 {
-        let lo = self.read8(addr);
-        let hi = self.read8(addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
-
-        u16::from_le_bytes([lo, hi])
-    }
-
-    pub fn write16(&mut self, addr: u16, value: u16) {
-        let [lo, hi] = u16::to_le_bytes(value);
-        self.write8(addr, lo);
-        self.write8(addr.checked_add(1).unwrap(), hi); // TODO: checked or wrapping?
-    }
-}
-
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Cpu {
-    pub pc: u16,
-    pub sp: u16,
     pub regs: Registers,
-    pub ram: MemoryBus,
+    pub bus: MemoryBus,
 }
 
 impl Cpu {
     pub fn fetch8(&mut self) -> u8 {
-        let byte = self.ram.read8(self.pc);
-        self.pc = self.pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
+        let pc: u16 = self.regs.pc();
+        let byte = self.bus.read8(pc);
+        self.regs.set_pc(pc.checked_add(1).unwrap()); // TODO: checked or wrapping?
 
         byte
     }
@@ -80,27 +33,8 @@ impl Cpu {
         u16::from_le_bytes([lo, hi])
     }
 
-    fn exec(&mut self, instr: Instruction) -> u16 {
-        todo!()
-    }
-
-    fn read_op(&self, addr: u16) -> Opcode {
-        let mut byte = self.ram.read8(addr);
-        let mut extended = false;
-
-        if byte == 0xCB {
-            extended = true;
-            byte = self.ram.read8(addr + 1);
-        }
-
-        Opcode { byte, extended }
-    }
-
     pub fn step(&mut self) -> usize {
-        let opcode = self.read_op(self.pc);
-        let instr = todo!();
-        let next_pc = self.exec(instr);
-        self.pc = next_pc;
+        self.exec_next_instr();
         1
     }
 
@@ -215,13 +149,13 @@ impl Cpu {
 
     pub fn stack_push(&mut self, value: u16) {
         let reg_sp = self.regs.sp();
-        self.ram.write16(reg_sp, value);
+        self.bus.write16(reg_sp, value);
         self.regs.set_sp(reg_sp.checked_add(2).unwrap()); // TODO: checked or wrapping?
     }
 
     pub fn stack_pop(&mut self) -> u16 {
         let reg_sp = self.regs.sp();
-        let res = self.ram.read16(reg_sp);
+        let res = self.bus.read16(reg_sp);
         self.regs.set_sp(reg_sp.checked_sub(2).unwrap()); // TODO: checked or wrapping?
 
         res

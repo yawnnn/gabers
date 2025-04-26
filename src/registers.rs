@@ -76,18 +76,6 @@ impl Flag {
     }
 }
 
-// impl From<Flag> for u8 {
-//     #[rustfmt::skip]
-//     fn from(value: Flag) -> Self {
-//         match value {
-//             Flag::CF => 1 << 4,
-//             Flag::HF => 1 << 5,
-//             Flag::NF => 1 << 6,
-//             Flag::ZF => 1 << 7,
-//         }
-//     }
-// }
-
 #[derive(Default, Debug, Clone, Copy)]
 pub struct FlagsRegister(u8);
 
@@ -104,10 +92,6 @@ impl FlagsRegister {
         }
     }
 
-    fn toggle(&mut self, flag: Flag) {
-        self.0 ^= flag.get_mask()
-    }
-
     fn inner(&self) -> u8 {
         self.0
     }
@@ -115,19 +99,6 @@ impl FlagsRegister {
     fn set_inner(&mut self, value: u8) {
         self.0 = value;
     }
-}
-
-/// Implement getter and setter for flag
-macro_rules! flag_impl {
-    ($flag:ident, $getter:ident, $setter:ident) => {
-        pub fn $getter(&self) -> bool {
-            self.f.get(Flag::$flag)
-        }
-
-        pub fn $setter(&mut self, fg: bool) {
-            self.f.set(Flag::$flag, fg);
-        }
-    };
 }
 
 #[derive(Default, Debug, Clone, Copy)]

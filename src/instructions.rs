@@ -135,7 +135,7 @@ impl In8<Addr> for Cpu {
             }
         };
 
-        self.ram.read8(addr)
+        self.bus.read8(addr)
     }
 }
 
@@ -164,7 +164,7 @@ impl Out8<Addr> for Cpu {
             }
         };
 
-        self.ram.write8(addr, value)
+        self.bus.write8(addr, value)
     }
 }
 
@@ -318,8 +318,8 @@ impl Cpu {
         let addr = self.fetch16();
         let value = self.regs.sp();
         let [lo, hi] = u16::to_le_bytes(value);
-        self.ram.write8(addr, lo);
-        self.ram.write8(addr.wrapping_add(1), hi);
+        self.bus.write8(addr, lo);
+        self.bus.write8(addr.wrapping_add(1), hi);
     }
 
     // LD HL, SP+e8
@@ -346,7 +346,7 @@ impl Cpu {
     fn loadh_in(&mut self) {
         let addr = self.fetch16();
         if (0xFF00..0xFFFF).contains(&addr) {
-            let value = self.ram.read8(addr);
+            let value = self.bus.read8(addr);
             self.write8(Reg8::A, value);
         }
     }
@@ -359,7 +359,7 @@ impl Cpu {
         let addr = self.fetch16();
         if (0xFF00..0xFFFF).contains(&addr) {
             let reg_a = self.read8(Reg8::A);
-            self.ram.write8(addr, reg_a);
+            self.bus.write8(addr, reg_a);
         }
     }
 

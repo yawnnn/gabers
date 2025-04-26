@@ -65,12 +65,12 @@ mod tests {
                 Mem::Imm16 => cpu.fetch16(),
                 Mem::Addr8(mem) => {
                     let addr = mem.read(cpu);
-                    cpu.ram.read8(addr) as u16
+                    cpu.bus.read8(addr) as u16
                 }
                 Mem::Addr16(mem) => {
                     let addr = mem.read(cpu);
-                    let lo = cpu.ram.read8(addr);
-                    let hi = cpu.ram.read8(addr.wrapping_add(1));
+                    let lo = cpu.bus.read8(addr);
+                    let hi = cpu.bus.read8(addr.wrapping_add(1));
                     u16::from_le_bytes([lo, hi])
                 }
                 &Mem::Flag(flag) => cpu.regs.flag(flag) as u16,
@@ -109,13 +109,13 @@ mod tests {
                 Mem::Addr8(mem) => {
                     let addr = mem.read(cpu);
                     let [lo, _] = u16::to_le_bytes(value);
-                    cpu.ram.write8(addr, lo);
+                    cpu.bus.write8(addr, lo);
                 }
                 Mem::Addr16(mem) => {
                     let addr = mem.read(cpu);
                     let [lo, hi] = u16::to_le_bytes(value);
-                    cpu.ram.write8(addr, lo);
-                    cpu.ram.write8(addr.wrapping_add(1), hi);
+                    cpu.bus.write8(addr, lo);
+                    cpu.bus.write8(addr.wrapping_add(1), hi);
                 }
                 &Mem::Flag(flag) => {
                     cpu.regs.set_flag(flag, true);

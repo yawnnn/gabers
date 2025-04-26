@@ -2,12 +2,12 @@
 #![allow(unused)]
 use std::ops::Range;
 
+use crate::gpu::Gpu;
+
 /*
  * Screen
  */
-pub const SCREEN_WIDTH: usize = 160;
-pub const SCREEN_HEIGHT: usize = 144;
-
+pub const SCREEN: (usize, usize) = (160, 140);
 
 /*
  * Memory map
@@ -136,3 +136,51 @@ pub const HWREG_SVBK: usize = 0xFF70; // WRAM bank - R/W
 pub const HWREG_PCM12: usize = 0xFF76; // Audio digital outputs 1 & 2 - R
 pub const HWREG_PCM34: usize = 0xFF77; // Audio digital outputs 3 & 4 - R
 pub const HWREG_IE: usize = 0xFFFF; // Interrupt enable - R/W
+
+#[derive(Clone, Copy, Debug)]
+pub struct MemoryBus {
+    pub ram: [u8; MemoryBus::RAM_SIZE],
+    pub gpu: Gpu,
+}
+
+impl MemoryBus {
+    const RAM_SIZE: usize = u16::MAX as usize;
+
+    pub fn read8(&self, addr: u16) -> u8 {
+        if MM_VRAM.contains(&(addr as usize)) {
+            self.gpu.read(addr)
+        } else {
+            self.ram[addr as usize]
+        }
+    }
+
+    pub fn write8(&mut self, addr: u16, value: u8) {
+        if MM_VRAM.contains(&(addr as usize)) {
+            self.gpu.write(addr, value);
+        } else {
+            self.ram[addr as usize] = value;
+        }
+    }
+
+    pub fn read16(&self, addr: u16) -> u16 {
+        let lo = self.read8(addr);
+        let hi = self.read8(addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
+
+        u16::from_le_bytes([lo, hi])
+    }
+
+    pub fn write16(&mut self, addr: u16, value: u16) {
+        let [lo, hi] = u16::to_le_bytes(value);
+        self.write8(addr, lo);
+        self.write8(addr.checked_add(1).unwrap(), hi); // TODO: checked or wrapping?
+    }
+}
+
+impl Default for MemoryBus {
+    fn default() -> Self {
+        MemoryBus {
+            ram: [0; MemoryBus::RAM_SIZE],
+            gpu: Default::default(),
+        }
+    }
+}
