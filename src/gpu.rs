@@ -40,18 +40,18 @@ type Tile = [[TilePixel; 8]; 8];
 
 #[derive(Clone, Copy, Debug)]
 pub struct Gpu {
-    pub tile_data: [Tile; Gpu::TILES_SIZE],
+    pub tile_data: [Tile; Gpu::TILE_DATA_SIZE],
     pub vram: [u8; Gpu::VRAM_SIZE],
     pub canvas: [u8; Gpu::CANVAS_SIZE],
 }
 
 impl Gpu {
-    const TILES_SIZE: usize = span(VRAM_TILES);
-    const VRAM_SIZE: usize = span(MM_VRAM);
+    const TILE_DATA_SIZE: usize = span(VRAM::TILE_BLOCKS);
+    const VRAM_SIZE: usize = span(MM::VRAM);
     const CANVAS_SIZE: usize = 256 * 256 * 4;
 
     fn vram_addr(addr: u16) -> usize {
-        addr as usize - MM_VRAM.start
+        addr as usize - MM::VRAM.start
     }
 
     // TODO: address mode
@@ -68,7 +68,7 @@ impl Gpu {
         let vram_addr = Self::vram_addr(addr);
         self.vram[vram_addr] = value;
 
-        if !VRAM_TILES.contains(&vram_addr) {
+        if !VRAM::TILE_BLOCKS.contains(&vram_addr) {
             return;
         }
 
@@ -97,10 +97,10 @@ impl Gpu {
     }
 
     fn draw(&mut self) {
-        for vram_addr in 0..span(VRAM_MAP0) {
+        for vram_addr in 0..span(VRAM::TMAP0) {
             let x = (vram_addr / 32) * 8;
             let y = (vram_addr % 32) * 8;
-            let index = self.vram[vram_addr + VRAM_MAP0.start];
+            let index = self.vram[vram_addr + VRAM::TMAP0.start];
             self.draw_tile(x, y, index);
         }
     }
@@ -109,7 +109,7 @@ impl Gpu {
 impl Default for Gpu {
     fn default() -> Self {
         Gpu {
-            tile_data: [Default::default(); Gpu::TILES_SIZE],
+            tile_data: [Default::default(); Gpu::TILE_DATA_SIZE],
             vram: [0; Gpu::VRAM_SIZE],
             canvas: [0; Gpu::CANVAS_SIZE],
         }
