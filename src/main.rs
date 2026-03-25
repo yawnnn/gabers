@@ -1,8 +1,6 @@
 #![feature(const_trait_impl)]
 
 use minifb::{Key, Window, WindowOptions};
-use std::thread;
-use std::time::{Duration, Instant};
 
 mod codegen;
 mod common;
@@ -34,24 +32,16 @@ fn update_window(window: &mut Window, window_buf: &mut [u32], gpu_buf: &[u8]) {
 fn main() {
     let mut window =
         Window::new("Gameboy", WIN_SIZE.0, WIN_SIZE.1, WindowOptions::default()).unwrap();
+    window.set_target_fps(TARGET_FPS);
     let mut window_buf = vec![0; WIN_SIZE.0 * WIN_SIZE.1];
     let mut cpu = Box::<Cpu>::default();
-    let target_duration = Duration::from_secs_f64(1.0 / TARGET_FPS as f64);
     let target_cycles = (CPU_HZ as f64 / TARGET_FPS as f64).ceil() as usize;
 
-    let mut last_frame = Instant::now();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let mut ncycles = 0;
         while ncycles < target_cycles {
             ncycles += cpu.step();
         }
-
-        let elapsed = last_frame.elapsed();
-        if elapsed < target_duration {
-            thread::sleep(target_duration - elapsed);
-        }
-
         update_window(&mut window, &mut window_buf, &cpu.bus.gpu.canvas);
-        last_frame = Instant::now();
     }
 }
