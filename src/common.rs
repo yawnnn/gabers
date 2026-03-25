@@ -1,7 +1,11 @@
 use std::ops::Range;
 
-/// span of `Range<usize>`  
-/// because i want it `const` as of today i can't make it more generic or ergonomic w/out unstable (it seems)
-pub const fn span(r: Range<usize>) -> usize {
-    r.end - r.start
+pub const trait Span {
+    fn span(&self) -> usize;
+}
+
+impl const Span for Range<usize> {
+    fn span(&self) -> usize {
+        self.end - self.start
+    }
 }

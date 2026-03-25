@@ -54,7 +54,7 @@ impl IO {
 /*
  * VRAM
  */
-
+#[allow(clippy::upper_case_acronyms)]
 pub struct VRAM;
 
 impl VRAM {

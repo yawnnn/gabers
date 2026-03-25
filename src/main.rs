@@ -1,3 +1,5 @@
+#![feature(const_trait_impl)]
+
 mod codegen;
 mod common;
 mod cpu;

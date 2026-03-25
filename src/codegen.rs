@@ -323,15 +323,14 @@ mod tests {
 
     fn join_bit_index_operands(map: &mut HashMap<String, Instruction>) {
         for instr in map.values_mut() {
-            if instr.operands.len() == 2 {
-                if let Ok(bit_index) = instr.operands[0].name.parse::<u8>() {
-                    if bit_index < 8 {
-                        let mut reg = instr.operands[1].clone();
-                        reg.bit_index = Some(bit_index);
-                        reg.bytes = Some(1);
-                        instr.operands = vec![reg]
-                    }
-                }
+            if instr.operands.len() == 2
+                && let Ok(bit_index) = instr.operands[0].name.parse::<u8>()
+                && bit_index < 8
+            {
+                let mut reg = instr.operands[1].clone();
+                reg.bit_index = Some(bit_index);
+                reg.bytes = Some(1);
+                instr.operands = vec![reg]
             }
         }
     }

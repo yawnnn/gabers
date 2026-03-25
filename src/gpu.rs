@@ -46,8 +46,8 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    const TILE_DATA_SIZE: usize = span(VRAM::TILE_BLOCKS);
-    const VRAM_SIZE: usize = span(MM::VRAM);
+    const TILE_DATA_SIZE: usize = VRAM::TILE_BLOCKS.span();
+    const VRAM_SIZE: usize = MM::VRAM.span();
     const CANVAS_SIZE: usize = 256 * 256 * 4;
 
     fn vram_addr(addr: u16) -> usize {
@@ -80,8 +80,9 @@ impl Gpu {
         let row = (vram_addr % 16) / 2;
 
         for col in 0..8 {
-            let lo = lo_by & (1 << (7 - col)) != 0;
-            let hi = hi_by & (1 << (7 - col)) != 0;
+            let bitmask = 1 << (7 - col);
+            let lo = (lo_by & bitmask) != 0;
+            let hi = (hi_by & bitmask) != 0;
             self.tile_data[tile][row][col] = TilePixel::from([lo, hi]);
         }
     }
@@ -97,7 +98,7 @@ impl Gpu {
     }
 
     fn draw(&mut self) {
-        for vram_addr in 0..span(VRAM::TMAP0) {
+        for vram_addr in 0..VRAM::TMAP0.span() {
             let x = (vram_addr / 32) * 8;
             let y = (vram_addr % 32) * 8;
             let index = self.vram[vram_addr + VRAM::TMAP0.start];
