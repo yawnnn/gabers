@@ -4,11 +4,6 @@ use std::ops::Range;
 use crate::gpu::Gpu;
 
 /*
- * Screen
- */
-pub const SCREEN: (usize, usize) = (160, 140);
-
-/*
  * Memory map
  */
 pub struct MemoryMap;
