@@ -2,7 +2,6 @@
 
 use minifb::{Key, Window, WindowOptions};
 
-mod codegen;
 mod constants;
 mod common;
 mod cpu;

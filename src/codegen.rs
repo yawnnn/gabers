@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+/**
+ * Not used anymore, but kept for reference and potential future use.
+ */
 #[cfg(test)]
 mod tests {
     use crate::registers::*;
