@@ -4,9 +4,10 @@ use std::ops::RangeBounds;
 
 use crate::common::*;
 use crate::memory::*;
+use crate::constants::*;
 
 #[derive(Default, Clone, Copy, Debug)]
-pub enum TilePixel {
+pub enum TileColor {
     #[default]
     Black,
     LGray,
@@ -14,95 +15,90 @@ pub enum TilePixel {
     White,
 }
 
-impl From<[bool; 2]> for TilePixel {
+impl From<[bool; 2]> for TileColor {
     fn from(value: [bool; 2]) -> Self {
         match value {
-            [false, false] => TilePixel::Black,
-            [true, false] => TilePixel::LGray,
-            [false, true] => TilePixel::DGray,
-            [true, true] => TilePixel::White,
+            [false, false] => TileColor::Black,
+            [true, false] => TileColor::LGray,
+            [false, true] => TileColor::DGray,
+            [true, true] => TileColor::White,
         }
     }
 }
 
-impl From<TilePixel> for u8 {
-    fn from(value: TilePixel) -> Self {
+impl From<TileColor> for u8 {
+    fn from(value: TileColor) -> Self {
         match value {
-            TilePixel::Black => 0b00,
-            TilePixel::LGray => 0b01,
-            TilePixel::DGray => 0b10,
-            TilePixel::White => 0b11,
+            TileColor::Black => 0b00,
+            TileColor::LGray => 0b01,
+            TileColor::DGray => 0b10,
+            TileColor::White => 0b11,
         }
     }
 }
 
-type Tile = [[TilePixel; 8]; 8];
+const TILE_SIDE: usize = 8;
+type Tile = [[TileColor; TILE_SIDE]; TILE_SIDE];
 
 #[derive(Clone, Copy, Debug)]
 pub struct Gpu {
-    pub tile_data: [Tile; Gpu::TILE_DATA_SIZE],
-    pub vram: [u8; Gpu::VRAM_SIZE],
-    pub canvas: [u8; Gpu::CANVAS_SIZE],
+    pub tiles: [Tile; Self::TILES_COUNT],
+    pub vram: [u8; Self::VRAM_SIZE],
+    pub canvas: [u8; Self::CANVAS_SIZE],
 }
 
 impl Gpu {
-    const TILE_DATA_SIZE: usize = VRAM::TILE_BLOCKS.span();
+    const TILES_COUNT: usize = VRAM::TILE_BLOCKS.span();
     const VRAM_SIZE: usize = MM::VRAM.span();
     const CANVAS_SIZE: usize = 256 * 256 * 4;
 
-    fn vram_addr(addr: u16) -> usize {
-        addr as usize - MM::VRAM.start
-    }
-
     // TODO: address mode
-    fn tile_addr(index: u8) -> usize {
-        index as usize
+    fn tile_idx(idx: u8) -> usize {
+        idx as usize
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
-        let vram_addr = Self::vram_addr(addr);
-        self.vram[vram_addr]
+    pub fn read(&self, addr: usize) -> u8 {
+        self.vram[addr]
     }
 
-    pub fn write(&mut self, addr: u16, value: u8) {
-        let vram_addr = Self::vram_addr(addr);
-        self.vram[vram_addr] = value;
+    pub fn write(&mut self, addr: usize, value: u8) {
+        self.vram[addr] = value;
 
-        if !VRAM::TILE_BLOCKS.contains(&vram_addr) {
+        if !VRAM::TILE_BLOCKS.contains(&addr) {
             return;
         }
 
-        let norm_index = vram_addr & 0xFFFE;
-        let lo_by = self.vram[norm_index];
-        let hi_by = self.vram[norm_index + 1];
+        let base_addr = addr & !1;
+        let lo_by = self.vram[base_addr];
+        let hi_by = self.vram[base_addr + 1];
 
-        let tile = vram_addr / 16;
-        let row = (vram_addr % 16) / 2;
+        let tile_idx = addr / 16;
+        let row = (addr % 16) / 2;
 
-        for col in 0..8 {
-            let bitmask = 1 << (7 - col);
+        for col in 0..TILE_SIDE {
+            let bitmask = 1 << (TILE_SIDE - 1 - col);
             let lo = (lo_by & bitmask) != 0;
             let hi = (hi_by & bitmask) != 0;
-            self.tile_data[tile][row][col] = TilePixel::from([lo, hi]);
+            self.tiles[tile_idx][row][col] = TileColor::from([lo, hi]);
         }
     }
 
-    fn draw_tile(&mut self, x: usize, y: usize, index: u8) {
+    fn draw_tile(&mut self, row: usize, col: usize, idx: u8) {
         for i in 0..8 {
             for j in 0..8 {
-                let cx = x + i;
-                let cy = y + j;
-                self.canvas[cx + (cy * 32)] = self.tile_data[Self::tile_addr(index)][x][y].into();
+                let crow = row + i;
+                let ccol = col + j;
+                self.canvas[crow + (ccol * 32)] = self.tiles[Self::tile_idx(idx)][row][col].into();
             }
         }
     }
 
     fn draw(&mut self) {
-        for vram_addr in 0..VRAM::TMAP0.span() {
-            let x = (vram_addr / 32) * 8;
-            let y = (vram_addr % 32) * 8;
-            let index = self.vram[vram_addr + VRAM::TMAP0.start];
-            self.draw_tile(x, y, index);
+        for addr in 0..VRAM::TMAP0.span() {
+            let x = (addr / 32) * 8;
+            let y = (addr % 32) * 8;
+            let idx = self.vram[addr + VRAM::TMAP0.start];
+            self.draw_tile(x, y, idx);
         }
     }
 }
@@ -110,9 +106,9 @@ impl Gpu {
 impl Default for Gpu {
     fn default() -> Self {
         Gpu {
-            tile_data: [Default::default(); Gpu::TILE_DATA_SIZE],
-            vram: [0; Gpu::VRAM_SIZE],
-            canvas: [0; Gpu::CANVAS_SIZE],
+            tiles: [Default::default(); Self::TILES_COUNT],
+            vram: [0; Self::VRAM_SIZE],
+            canvas: [0; Self::CANVAS_SIZE],
         }
     }
 }

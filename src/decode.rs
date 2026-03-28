@@ -3,13 +3,11 @@
 use crate::cpu::Cpu;
 
 impl Cpu {
-    pub fn exec_next_instr(&mut self) {
-        self.fetch8();
+    pub fn decode_exec_instr(&mut self, opcode: u8) {
         todo!()
     }
 
-    fn exec_next_instr_prefixed(&mut self) {
-        self.fetch8();
+    fn decode_exec_instr_cb(&mut self, opcode_cb: u8) {
         todo!()
     }
 }

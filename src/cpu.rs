@@ -19,23 +19,23 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn fetch8(&mut self) -> u8 {
-        let pc: u16 = self.regs.pc();
-        let byte = self.bus.read8(pc);
-        self.regs.set_pc(pc.checked_add(1).unwrap()); // TODO: checked or wrapping?
+        let byte = self.bus.read8(self.regs.pc);
+        self.regs.pc = self.regs.pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
 
         byte
     }
 
     pub fn fetch16(&mut self) -> u16 {
-        let lo = self.fetch8();
-        let hi = self.fetch8();
+        let word = self.bus.read16(self.regs.pc);
+        self.regs.pc = self.regs.pc.checked_add(2).unwrap(); // TODO: checked or wrapping?
 
-        u16::from_le_bytes([lo, hi])
+        word
     }
 
     pub fn step(&mut self) -> usize {
-        self.exec_next_instr();
-        1
+        let opcode = self.fetch8();
+        self.decode_exec_instr(opcode);
+        todo!()
     }
 
     // Z N H C
@@ -71,7 +71,7 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rl(&mut self, value: u8) -> u8 {
-        let cf = self.regs.flag(Flag::CF);
+        let cf = self.regs.get_flag(Flag::CF);
         let res = (value << 1) | cf as u8;
         let new_cf = value & 0x80;
 
@@ -94,7 +94,7 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rr(&mut self, value: u8) -> u8 {
-        let cf = self.regs.flag(Flag::CF);
+        let cf = self.regs.get_flag(Flag::CF);
         let res = (value >> 1) | ((cf as u8) << 7);
         let new_cf = value & 0x01;
 
@@ -148,36 +148,164 @@ impl Cpu {
     }
 
     pub fn stack_push(&mut self, value: u16) {
-        let reg_sp = self.regs.sp();
-        self.bus.write16(reg_sp, value);
-        self.regs.set_sp(reg_sp.checked_add(2).unwrap()); // TODO: checked or wrapping?
+        self.bus.write16(self.regs.sp, value);
+        self.regs.sp = self.regs.sp.checked_add(2).unwrap(); // TODO: checked or wrapping?
     }
 
     pub fn stack_pop(&mut self) -> u16 {
-        let reg_sp = self.regs.sp();
-        let res = self.bus.read16(reg_sp);
-        self.regs.set_sp(reg_sp.checked_sub(2).unwrap()); // TODO: checked or wrapping?
+        let res = self.bus.read16(self.regs.sp);
+        self.regs.sp = self.regs.sp.checked_sub(2).unwrap(); // TODO: checked or wrapping?
 
         res
     }
 
-    pub fn check_condition(&self, cc: ConditionCode) -> bool {
-        match cc {
-            ConditionCode::CF => self.regs.flag(Flag::CF),
-            ConditionCode::NoCF => !self.regs.flag(Flag::CF),
-            ConditionCode::ZF => self.regs.flag(Flag::ZF),
-            ConditionCode::NoZF => !self.regs.flag(Flag::ZF),
+    pub fn check_condition(&self, cond: Condition) -> bool {
+        match cond {
+            Condition::CF => self.regs.get_flag(Flag::CF),
+            Condition::NoCF => !self.regs.get_flag(Flag::CF),
+            Condition::ZF => self.regs.get_flag(Flag::ZF),
+            Condition::NoZF => !self.regs.get_flag(Flag::ZF),
         }
     }
 
-    pub fn call(&mut self, addr: u16) {
-        self.stack_push(self.regs.pc());
-        self.regs.set_pc(addr);
+    pub fn jump_rel(&mut self, offset: i8) {
+        self.regs.pc = self.regs.pc.checked_add_signed(offset as i16).unwrap(); // TODO: checked or wrapping?
     }
 
-    pub fn jump_rel(&mut self, offset: i8) {
-        let reg_pc = self.regs.pc();
-        self.regs
-            .set_pc(reg_pc.checked_add_signed(offset as i16).unwrap()); // TODO: checked or wrapping?
+    pub fn jump_abs(&mut self, addr: u16) {
+        self.regs.pc = addr;
+    }
+
+    pub fn call(&mut self, addr: u16) {
+        self.stack_push(self.regs.pc);
+        self.jump_abs(addr);
+    }
+}
+
+pub enum Condition {
+    CF,
+    NoCF,
+    ZF,
+    NoZF,
+}
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Clone, Copy)]
+pub enum Addr {
+    BC,
+    DE,
+    HL,
+    HLI,
+    HLD,
+    Imm16,
+    HighC,
+}
+
+impl Addr {
+    pub fn read_addr(&self, cpu: &mut Cpu) -> u16 {
+        match self {
+            Addr::BC => cpu.read16(Reg16::BC),
+            Addr::DE => cpu.read16(Reg16::DE),
+            Addr::HL => cpu.read16(Reg16::HL),
+            Addr::HLI => {
+                let addr = cpu.read16(Reg16::HL);
+                cpu.write16(Reg16::HL, addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
+                addr
+            }
+            Addr::HLD => {
+                let addr = cpu.read16(Reg16::HL);
+                cpu.write16(Reg16::HL, addr.checked_sub(1).unwrap()); // TODO: checked or wrapping?
+                addr
+            }
+            Addr::Imm16 => cpu.fetch16(),
+            Addr::HighC => {
+                let value = cpu.read8(Reg8::C);
+                0xFF00 | value as u16
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Imm8;
+
+#[derive(Clone, Copy)]
+pub struct Imm16;
+
+pub trait In8<T: Copy> {
+    fn read8(&mut self, src: T) -> u8;
+}
+
+pub trait Out8<T: Copy> {
+    fn write8(&mut self, dst: T, value: u8);
+}
+
+pub trait In16<T: Copy> {
+    fn read16(&mut self, src: T) -> u16;
+}
+
+pub trait Out16<T: Copy> {
+    fn write16(&mut self, dst: T, value: u16);
+}
+
+impl In8<Reg8> for Cpu {
+    fn read8(&mut self, src: Reg8) -> u8 {
+        self.regs.read8(src)
+    }
+}
+
+impl Out8<Reg8> for Cpu {
+    fn write8(&mut self, dst: Reg8, value: u8) {
+        self.regs.write8(dst, value);
+    }
+}
+
+impl In16<Reg16> for Cpu {
+    fn read16(&mut self, src: Reg16) -> u16 {
+        self.regs.read16(src)
+    }
+}
+
+impl Out16<Reg16> for Cpu {
+    fn write16(&mut self, dst: Reg16, value: u16) {
+        self.regs.write16(dst, value);
+    }
+}
+
+impl In8<Addr> for Cpu {
+    fn read8(&mut self, src: Addr) -> u8 {
+        let addr = src.read_addr(self);
+        self.bus.read8(addr)
+    }
+}
+
+impl Out8<Addr> for Cpu {
+    fn write8(&mut self, dst: Addr, value: u8) {
+        let addr = dst.read_addr(self);
+        self.bus.write8(addr, value)
+    }
+}
+
+impl In16<SP> for Cpu {
+    fn read16(&mut self, _: SP) -> u16 {
+        self.regs.sp
+    }
+}
+
+impl Out16<SP> for Cpu {
+    fn write16(&mut self, _: SP, value: u16) {
+        self.regs.sp = value;
+    }
+}
+
+impl In8<Imm8> for Cpu {
+    fn read8(&mut self, _: Imm8) -> u8 {
+        self.fetch8()
+    }
+}
+
+impl In16<Imm16> for Cpu {
+    fn read16(&mut self, _: Imm16) -> u16 {
+        self.fetch16()
     }
 }
