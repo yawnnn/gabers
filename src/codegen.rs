@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::cpu::*;
     use crate::registers::*;
     use std::collections::HashMap;
     use std::fmt::Debug;
@@ -35,7 +34,7 @@ mod tests {
     }
 
     #[allow(clippy::upper_case_acronyms)]
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     pub enum Mem {
         Reg8(Reg8),
         Reg16(Reg16),
@@ -54,84 +53,29 @@ mod tests {
         SPMod(Option<Box<Mem>>),
     }
 
+    impl Debug for Mem {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Mem::Reg8(r) => write!(f, "{r:?}"),
+                Mem::Reg16(r) => write!(f, "{r:?}"),
+                Mem::SP => write!(f, "SP"),
+                Mem::Imm8 => write!(f, "Imm8"),
+                Mem::Imm16 => write!(f, "Imm16"),
+                Mem::Imm8S => write!(f, "Imm8S"),
+                Mem::Addr8(m) => write!(f, "Addr::{m:?}"),
+                Mem::Addr16(m) => write!(f, "Addr::{m:?}"),
+                Mem::Flag(flg) => write!(f, "{flg:?}"),
+                Mem::NoFlag(flg) => write!(f, "No{flg:?}"),
+                Mem::Rst(addr) => write!(f, "{addr:?}"),
+                Mem::Bit(bit, m) => write!(f, "{bit}, {m:?}"),
+                Mem::HLI => write!(f, "Addr::HLI"),
+                Mem::HLD => write!(f, "Addr::HLD"),
+                Mem::SPMod(_) => write!(f, "SP"),
+            }
+        }
+    }
+
     impl Mem {
-        fn read(&self, cpu: &mut Cpu) -> u16 {
-            match self {
-                &Mem::Reg8(reg) => cpu.regs.read8(reg) as u16,
-                &Mem::Reg16(reg) => cpu.regs.read16(reg),
-                Mem::SP => cpu.regs.sp(),
-                Mem::Imm8 => cpu.fetch8() as u16,
-                Mem::Imm8S => cpu.fetch8() as u16,
-                Mem::Imm16 => cpu.fetch16(),
-                Mem::Addr8(mem) => {
-                    let addr = mem.read(cpu);
-                    cpu.bus.read8(addr) as u16
-                }
-                Mem::Addr16(mem) => {
-                    let addr = mem.read(cpu);
-                    let lo = cpu.bus.read8(addr);
-                    let hi = cpu.bus.read8(addr.wrapping_add(1));
-                    u16::from_le_bytes([lo, hi])
-                }
-                &Mem::Flag(flag) => cpu.regs.flag(flag) as u16,
-                &Mem::NoFlag(flag) => !cpu.regs.flag(flag) as u16,
-                Mem::Bit(bit, mem) => mem.read(cpu) & (1 << bit),
-                Mem::Rst(_) => todo!(),
-                Mem::HLI => {
-                    let value = Mem::Reg16(Reg16::HL).read(cpu);
-                    Mem::Reg16(Reg16::HL).write(cpu, value.wrapping_add(1));
-
-                    value
-                }
-                Mem::HLD => {
-                    let value = Mem::Reg16(Reg16::HL).read(cpu);
-                    Mem::Reg16(Reg16::HL).write(cpu, value.wrapping_sub(1));
-
-                    value
-                }
-                Mem::SPMod(off) => {
-                    let off = off.as_ref().unwrap().read(cpu);
-                    let value = Mem::SP.read(cpu);
-
-                    value.wrapping_add(off)
-                }
-            }
-        }
-
-        fn write(&self, cpu: &mut Cpu, value: u16) {
-            match self {
-                &Mem::Reg8(reg) => cpu.regs.write8(reg, value as u8),
-                &Mem::Reg16(reg) => cpu.regs.write16(reg, value),
-                Mem::SP => cpu.regs.set_sp(value),
-                Mem::Imm8 | Mem::Imm16 | Mem::Imm8S => {
-                    panic!("Can't write to immediate value");
-                }
-                Mem::Addr8(mem) => {
-                    let addr = mem.read(cpu);
-                    let [lo, _] = u16::to_le_bytes(value);
-                    cpu.bus.write8(addr, lo);
-                }
-                Mem::Addr16(mem) => {
-                    let addr = mem.read(cpu);
-                    let [lo, hi] = u16::to_le_bytes(value);
-                    cpu.bus.write8(addr, lo);
-                    cpu.bus.write8(addr.wrapping_add(1), hi);
-                }
-                &Mem::Flag(flag) => {
-                    cpu.regs.set_flag(flag, true);
-                }
-                Mem::Bit(bit, mem) => {
-                    let old = mem.read(cpu);
-                    mem.write(cpu, old | (1 << bit));
-                }
-                Mem::NoFlag(_) => unreachable!(),
-                Mem::Rst(_) => todo!(),
-                Mem::HLI | Mem::HLD | Mem::SPMod(_) => {
-                    panic!("Can't write directly to {self:?}");
-                }
-            }
-        }
-
         pub fn size(&self) -> u8 {
             match self {
                 Mem::Reg8(_)
@@ -190,6 +134,148 @@ mod tests {
         fn takes_flag_cond(&self) -> bool {
             ["CALL", "JP", "JR", "RET"].contains(&self.mnemonic.as_ref())
         }
+
+        fn operands_as_mem(&self) -> Vec<Mem> {
+            let mut count_ops = self.operands.len();
+            let v = self
+                .operands
+                .iter()
+                .map(|op| operand_to_mem(op, self, &mut count_ops))
+                .collect::<Vec<_>>();
+            v.into_iter().take(count_ops).collect::<Vec<_>>()
+        }
+
+        fn fnname(&self) -> String {
+            let mems = self.operands_as_mem();
+            let dim8 = mems.iter().all(|m| m.size() == 1);
+            let dim16 = mems.iter().all(|m| m.size() == 2);
+            let is_cc = if !mems.is_empty() {
+                matches!(mems[0], Mem::Flag(_) | Mem::NoFlag(_))
+            } else {
+                false
+            };
+
+            let by_size = |base| {
+                if dim8 {
+                    format!("{}8", base)
+                } else if dim16 {
+                    format!("{}16", base)
+                } else {
+                    panic!("Unexpected {self:?}");
+                }
+            };
+
+            let fnname = match self.mnemonic.as_str() {
+                "LD" => {
+                    if mems.len() == 2
+                        && let Mem::SPMod(_) = mems[1]
+                    {
+                        "load16_hl_sp_e8"
+                    } else if mems.len() == 2
+                        && let Mem::SP = mems[1]
+                    {
+                        "load16_imm_sp"
+                    } else if mems.len() == 2
+                        && mems.iter().all(|m| matches!(m, Mem::Reg8(Reg8::B)))
+                    {
+                        "load8_b_b"
+                    } else if mems.len() == 2
+                        && mems.iter().all(|m| matches!(m, Mem::Reg8(Reg8::D)))
+                    {
+                        "load8_d_d"
+                    } else {
+                        &by_size("load")
+                    }
+                }
+                "LDH" => {
+                    if let Mem::Addr8(_) = mems[0] {
+                        "ldh8_a_addr"
+                    } else {
+                        "ldh8_addr_a"
+                    }
+                }
+                "ADC" => "adc8",
+                "ADD" => {
+                    if let Mem::SP = mems[0] {
+                        "add16_sp_e"
+                    } else {
+                        &by_size("add")
+                    }
+                }
+                "CP" => "cmp8",
+                "DEC" => &by_size("dec"),
+                "INC" => &by_size("inc"),
+                "SBC" => "sbc8",
+                "SUB" => "sub8",
+                "AND" => "and8",
+                "CPL" => "cpl",
+                "OR" => "or8",
+                "XOR" => "xor8",
+                "BIT" => "bit8",
+                "RES" => "res8",
+                "SET" => "set8",
+                "RL" => "rl8",
+                "RLA" => "rla",
+                "RLC" => "rlc8",
+                "RLCA" => "rlca",
+                "RR" => "rr8",
+                "RRA" => "rra",
+                "RRC" => "rrc8",
+                "RRCA" => "rrca",
+                "SLA" => "sla8",
+                "SRA" => "sra8",
+                "SRL" => "srl8",
+                "SWAP" => "swap8",
+                "CALL" => {
+                    if is_cc {
+                        "call16_cc"
+                    } else {
+                        "call16"
+                    }
+                }
+                "JP" => {
+                    if is_cc {
+                        "jump16_cc"
+                    } else {
+                        "jump16"
+                    }
+                }
+                "JR" => {
+                    if is_cc {
+                        "jumpr16_cc"
+                    } else {
+                        "jumpr16"
+                    }
+                }
+                "RET" => {
+                    if is_cc {
+                        "ret_cc"
+                    } else {
+                        "ret"
+                    }
+                }
+                "CCF" => "ccf",
+                "SCF" => "scf",
+                "POP" => "pop16",
+                "PUSH" => "push16",
+                "NOP" => "noop",
+                "STOP" => "stop",
+                // TODO:
+                "RETI" => "todo!(), //reti",
+                "RST" => "todo!(), //rst",
+                "DI" => "todo!(), //di",
+                "EI" => "todo!(), //ei",
+                "HALT" => "todo!(), //halt",
+                "DAA" => "todo!(), //daa",
+                _ => "todo!",
+            };
+
+            if !fnname.starts_with("todo") {
+                format!("self.{fnname}")
+            } else {
+                fnname.into()
+            }
+        }
     }
 
     #[derive(Default, Debug, serde::Serialize, serde::Deserialize)]
@@ -221,7 +307,7 @@ mod tests {
             }
             "D" => Mem::Reg8(Reg8::D),
             "E" => Mem::Reg8(Reg8::E),
-            "F" => Mem::Reg8(Reg8::F),
+            "F" => unreachable!(), //Mem::Reg8(Reg8::F),
             "H" => Mem::Reg8(Reg8::H),
             "L" => Mem::Reg8(Reg8::L),
 
@@ -304,20 +390,13 @@ mod tests {
 
     impl Debug for Instruction {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let mut count_ops = self.operands.len();
-
             let ops_s = self
-                .operands
-                .iter()
-                .map(|op| format!("{:?}", operand_to_mem(op, self, &mut count_ops)))
+                .operands_as_mem()
+                .into_iter()
+                .map(|mem| format!("{mem:?}"))
                 .collect::<Vec<_>>();
 
-            write!(
-                f,
-                "Instruction::{}({})",
-                self.mnemonic,
-                ops_s[..count_ops].join(",")
-            )
+            write!(f, "{}({})", self.fnname(), ops_s.join(","))
         }
     }
 
@@ -335,46 +414,65 @@ mod tests {
         }
     }
 
-    fn codegen_fn<'a>(
-        file_out: &mut fs::File,
-        fnname: &str,
-        map: impl IntoIterator<Item = (&'a String, &'a Instruction)>,
+    fn codegen_match_cases<'a>(
+        w: &mut impl std::io::Write,
+        optable: impl IntoIterator<Item = (&'a String, &'a Instruction)>,
     ) {
-        writeln!(file_out, "fn {}(code: u8) {{", fnname).unwrap();
-        write!(file_out, "match code {{").unwrap();
-        for (opcode, instr) in map {
+        for (opcode, instr) in optable {
             //let opcode = format!("0b{:0<8b}", u8::from_str_radix(&opcode[2..], 16).unwrap());
-            write!(file_out, "{opcode} => {instr:?},").unwrap();
+            writeln!(w, "{opcode} => {instr:?},").unwrap();
         }
-        writeln!(file_out, "}}").unwrap();
-        writeln!(file_out, "}}").unwrap();
     }
 
-    fn codegen(file_out: &mut fs::File, optables: &OpTable) {
-        codegen_fn(file_out, "unprefixed", &optables.unprefixed);
-        codegen_fn(file_out, "cbprefixed", &optables.cbprefixed);
+    fn sort_by_mnemonic(optable: &HashMap<String, Instruction>) -> Vec<(&String, &Instruction)> {
+        let mut v = optable.iter().collect::<Vec<_>>();
+        v.sort_by(|(opcode1, instr1), (opcode2, instr2)| {
+            instr1
+                .mnemonic
+                .cmp(&instr2.mnemonic)
+                .then(opcode1.cmp(opcode2))
+        });
+
+        v
     }
 
-    fn sorted_by_mnemonic(hmap: &HashMap<String, Instruction>) -> Vec<(&String, &Instruction)> {
-        let mut items = hmap.iter().collect::<Vec<(_, _)>>();
-        items.sort_by(|item1, item2| item1.1.mnemonic.cmp(&item2.1.mnemonic));
+    fn codegen(w: &mut impl std::io::Write, optables: &OpTable) -> std::io::Result<()> {
+        let src = "
+use crate::cpu::Cpu;
 
-        //panic!("{items:?}");
+use crate::registers::{
+    Flag::{CF, NF},
+    Reg16::{AF, BC, DE, HL},
+    Reg8::{A, B, C, D, E, H, L},
+    SP,
+};
+use crate::instructions::Addr;
 
-        items
+impl Cpu {
+    pub fn decode_exec_instr(&mut self, opcode: u8) {
+        match opcode {
+            0xCB => {
+                let opcode_cb = self.fetch8();
+                self.decode_exec_instr_cb(opcode_cb);
+            }
+        ";
+        write!(w, "{src}")?;
+        codegen_match_cases(w, sort_by_mnemonic(&optables.unprefixed));
+        let src= "
+        }
     }
 
-    fn codegen_sorted(file_out: &mut fs::File, optables: &OpTable) {
-        codegen_fn(
-            file_out,
-            "unprefixed",
-            sorted_by_mnemonic(&optables.unprefixed),
-        );
-        codegen_fn(
-            file_out,
-            "cbprefixed",
-            sorted_by_mnemonic(&optables.cbprefixed),
-        );
+    pub fn decode_exec_instr_cb(&mut self, opcode_cb: u8) {
+        match opcode_cb {
+        ";
+        write!(w, "{src}")?;
+        codegen_match_cases(w, sort_by_mnemonic(&optables.cbprefixed));
+        let src = "
+        }
+    }
+}
+        ";
+        write!(w, "{src}")
     }
 
     fn filter_istructions(
@@ -401,8 +499,14 @@ mod tests {
         join_bit_index_operands(&mut optable.cbprefixed);
 
         // codegen of the code to handle them
-        let mut file_out = fs::File::create(root.join(codegen_base)).unwrap();
-        codegen(&mut file_out, &optable);
+        let name_out = root.join(codegen_base);
+        let mut file_out = fs::File::create(&name_out).unwrap();
+        codegen(&mut file_out, &optable).unwrap();
+        file_out.flush().unwrap();
+        std::process::Command::new("rustfmt")
+            .arg(&name_out)
+            .status()
+            .expect("failed to format generated code");
 
         // (debug) do only one category
         SHORT_SERIALIZE.set(true);
@@ -420,9 +524,5 @@ mod tests {
 
         let file_out = fs::File::create(root.join(format!("{filter_name}_{json_base}"))).unwrap();
         serde_json::to_writer(file_out, &filtered).unwrap();
-
-        let mut file_out =
-            fs::File::create(root.join(format!("{filter_name}_{codegen_base}"))).unwrap();
-        codegen_sorted(&mut file_out, &filtered);
     }
 }
