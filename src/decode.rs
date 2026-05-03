@@ -5,8 +5,48 @@ use crate::cpu::Cpu;
 use crate::cpu::*;
 use crate::registers::{Reg8::*, Reg16::*, SP};
 
+//  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+const OP_CYCLES: [u8; 256] = [
+    1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, // 0
+    1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1, // 1
+    2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1, // 2
+    2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1, // 3
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // 4
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // 5
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // 6
+    2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, // 7
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // 8
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // 9
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // a
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, // b
+    2, 3, 3, 4, 3, 4, 2, 4, 2, 4, 3, 0, 3, 6, 2, 4, // c
+    2, 3, 3, 0, 3, 4, 2, 4, 2, 4, 3, 0, 3, 0, 2, 4, // d
+    3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4, // e
+    3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4, // f
+];
+
+//  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+const CB_CYCLES: [u8; 256] = [
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 1
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 3
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, // 4
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, // 5
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, // 6
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, // 7
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 8
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 9
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // a
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // b
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // c
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // d
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // e
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // f
+];
+
 impl Cpu {
-    pub fn decode_exec_instr(&mut self, opcode: u8) {
+    pub fn decode_exec_instr(&mut self, opcode: u8) -> Option<u8> {
         match opcode {
             // --- 8-bit operations
             // 8-bit loads
@@ -194,7 +234,7 @@ impl Cpu {
             0x18 => self.jumpr8(),
             0xCD => self.call16(),
             0xC9 => self.ret(),
-            0xD9 => todo!(), // self.reti(),
+            0xD9 => return None, // self.reti(),
             0xC2 => self.jump16_cc(Condition::NoZF),
             0xCA => self.jump16_cc(Condition::ZF),
             0xD2 => self.jump16_cc(Condition::NoCF),
@@ -211,23 +251,23 @@ impl Cpu {
             0xC8 => self.ret_cc(Condition::ZF),
             0xD0 => self.ret_cc(Condition::NoCF),
             0xD8 => self.ret_cc(Condition::CF),
-            0xC7 => todo!(), //self.rst(0x00),
-            0xCF => todo!(), //self.rst(0x08),
-            0xD7 => todo!(), //self.rst(0x10),
-            0xDF => todo!(), //self.rst(0x18),
-            0xE7 => todo!(), //self.rst(0x20),
-            0xEF => todo!(), //self.rst(0x28),
-            0xF7 => todo!(), //self.rst(0x30),
-            0xFF => todo!(), //self.rst(0x38),
+            0xC7 => return None, //self.rst(0x00),
+            0xCF => return None, //self.rst(0x08),
+            0xD7 => return None, //self.rst(0x10),
+            0xDF => return None, //self.rst(0x18),
+            0xE7 => return None, //self.rst(0x20),
+            0xEF => return None, //self.rst(0x28),
+            0xF7 => return None, //self.rst(0x30),
+            0xFF => return None, //self.rst(0x38),
             // --- Miscellaneous
-            0x76 => todo!(), //self.halt(),
+            0x76 => return None, //self.halt(),
             0x10 => self.stop(),
-            0xF3 => todo!(), //self.di(),
-            0xFB => todo!(), //self.ei(),
+            0xF3 => return None, //self.di(),
+            0xFB => return None, //self.ei(),
             0x3F => self.ccf(),
             0x37 => self.scf(),
             0x00 => self.noop(),
-            0x27 => todo!(), //self.daa(),
+            0x27 => return None, //self.daa(),
             0x2F => self.cpl(),
             // --- 16-bit operations
             // 16-bit loads
@@ -262,16 +302,16 @@ impl Cpu {
             0x3B => self.dec16(SP),
             0xCB => {
                 let opcode_cb = self.fetch8();
-                self.decode_exec_instr_cb(opcode_cb);
+                return self.decode_exec_instr_cb(opcode_cb);
             }
             0xD3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
-                panic!("Invalid opcode: 0x{:02x}", opcode);
+                return None;
             }
         }
-        todo!()
+        Some(OP_CYCLES[opcode as usize])
     }
 
-    fn decode_exec_instr_cb(&mut self, opcode_cb: u8) {
+    fn decode_exec_instr_cb(&mut self, opcode_cb: u8) -> Option<u8> {
         match opcode_cb {
             // --- 8-bit operations
             // 8-bit arithmetic
@@ -532,5 +572,6 @@ impl Cpu {
             0xB6 => self.res8(6, Addr::HL),
             0xBE => self.res8(7, Addr::HL),
         }
+        Some(CB_CYCLES[opcode_cb as usize])
     }
 }

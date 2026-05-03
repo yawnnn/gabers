@@ -32,10 +32,18 @@ impl Cpu {
         word
     }
 
-    pub fn step(&mut self) -> usize {
+    pub fn step(&mut self) -> u8 {
         let opcode = self.fetch8();
-        self.decode_exec_instr(opcode);
-        todo!()
+        let Some(cycles) = self.decode_exec_instr(opcode) else {
+            #[cfg(debug_assertions)]
+            {
+                eprintln!("Unexpected instruction {opcode:X}");
+                return 0;
+            }
+            #[cfg(not(debug_assertions))]
+            panic!("Unexpected instruction {opcode:X}");
+        };
+        cycles
     }
 
     // Z N H C
