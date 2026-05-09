@@ -1,9 +1,12 @@
 #![feature(const_trait_impl)]
 
+use std::path;
+
 use minifb::{Key, Window, WindowOptions};
 
-mod constants;
+mod cartridge;
 mod common;
+mod constants;
 mod cpu;
 mod decode;
 mod gpu;
@@ -11,38 +14,74 @@ mod instructions;
 mod memory;
 mod registers;
 
-use cpu::Cpu;
+use crate::cartridge::Cartridge;
+use crate::constants::*;
+use crate::cpu::Cpu;
 
-pub const SCREEN_SIZE: (usize, usize) = (160, 140);
-const CPU_HZ: usize = 4_194_304;
-const MACHINE_TO_CPU_RATIO: u32 = 4;
 const TARGET_FPS: usize = 60;
-const WIN_SCALE: usize = 1;
-const WIN_SIZE: (usize, usize) = (SCREEN_SIZE.0 * WIN_SCALE, SCREEN_SIZE.1 * WIN_SCALE);
+const WINDOW_SCALE: usize = 1;
+const WINDOW_RES: (usize, usize) = (RESOLUTION.0 * WINDOW_SCALE, RESOLUTION.1 * WINDOW_SCALE);
+const TARGET_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
 
-fn update_window(window: &mut Window, window_buf: &mut [u32], gpu_buf: &[u8]) {
-    let (chunks, _) = gpu_buf.as_chunks::<4>();
-    for (i, pixel) in chunks.iter().enumerate() {
-        window_buf[i] = u32::from_le_bytes(*pixel);
-    }
-    window
-        .update_with_buffer(window_buf, WIN_SIZE.0, WIN_SIZE.1)
+struct Gameboy {
+    cartridge: Cartridge,
+    window: Window,
+    window_buf: Vec<u32>,
+    cpu: Box<Cpu>,
+}
+
+impl Gameboy {
+    fn new(path: &path::Path) -> Self {
+        let cartridge = Cartridge::new(path);
+        let mut window = Window::new(
+            &cartridge.title,
+            WINDOW_RES.0,
+            WINDOW_RES.1,
+            WindowOptions::default(),
+        )
         .unwrap();
+        window.set_target_fps(TARGET_FPS);
+        let window_buf = vec![0; WINDOW_RES.0 * WINDOW_RES.1];
+        let cpu = Box::<Cpu>::default();
+
+        Gameboy {
+            window,
+            window_buf,
+            cpu,
+            cartridge,
+        }
+    }
+
+    fn update_window(&mut self) {
+        let window = &mut self.window;
+        let window_buf = &mut self.window_buf;
+        let gpu_buf = self.cpu.bus.gpu.canvas;
+
+        let (chunks, _) = gpu_buf.as_chunks::<4>();
+        for (i, pixel) in chunks.iter().enumerate() {
+            if i >= window_buf.len() {
+                break; // TODO: viewport
+            }
+            window_buf[i] = u32::from_le_bytes(*pixel);
+        }
+        window
+            .update_with_buffer(window_buf, WINDOW_RES.0, WINDOW_RES.1)
+            .unwrap();
+    }
 }
 
 fn main() {
-    let mut window =
-        Window::new("Gameboy", WIN_SIZE.0, WIN_SIZE.1, WindowOptions::default()).unwrap();
-    window.set_target_fps(TARGET_FPS);
-    let mut window_buf = vec![0; WIN_SIZE.0 * WIN_SIZE.1];
-    let mut cpu = Box::<Cpu>::default();
-    const TARGET_CYCLES: u32 = (CPU_HZ as f64 / TARGET_FPS as f64).ceil() as u32;
+    env_logger::init();
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    let cartridge = path::PathBuf::from(&args[0]);
+    let mut gb: Gameboy = Gameboy::new(&cartridge);
+
+    while gb.window.is_open() && !gb.window.is_key_down(Key::Escape) {
         let mut ncycles = 0;
         while ncycles < TARGET_CYCLES {
-            ncycles += cpu.step() as u32 * MACHINE_TO_CPU_RATIO;
+            ncycles += gb.cpu.step() as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
         }
-        update_window(&mut window, &mut window_buf, &cpu.bus.gpu.canvas);
+        gb.update_window();
     }
 }

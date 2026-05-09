@@ -1,7 +1,7 @@
-use std::ops;
-use num_traits::ops::overflowing::OverflowingAdd;
 use num_traits::PrimInt;
 use num_traits::WrappingSub;
+use num_traits::ops::overflowing::OverflowingAdd;
+use std::ops;
 
 pub const trait Span {
     fn span(&self) -> usize;
@@ -78,10 +78,28 @@ where
             if acc < x_masked {
                 borrow = true;
             }
-            
+
             acc = acc.wrapping_sub(&x_masked);
         }
 
         (acc, borrow)
+    }
+}
+
+pub struct ConstMap<K: Ord, V, const N: usize>([(K, V); N]);
+
+impl<K: Ord + Copy, V, const N: usize> ConstMap<K, V, N> {
+    // TODO: sorting is not const
+    pub const fn new(map: [(K, V); N]) -> Self {
+        //map.sort_by_key(|(k, _)| *k);
+        ConstMap(map)
+    }
+
+    pub fn get(&self, key: &K) -> Option<&V> {
+        // self.0
+        //     .binary_search_by_key(key, |&(k, _)| k)
+        //     .map(|idx| &self.0[idx].1)
+        //     .ok()
+        self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v)   // TODO: why is `map(|(_, v)| v)` not const?
     }
 }

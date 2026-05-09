@@ -3,6 +3,16 @@ use std::ops::Range;
 
 use crate::gpu::Gpu;
 
+pub const MASTER_CLOCK: usize = 4_194_304;
+pub const MASTER_SYSTEM_CLOCK_RATIO: usize = 4;
+pub const SYSTEM_CLOCK: usize = MASTER_CLOCK/MASTER_SYSTEM_CLOCK_RATIO;
+pub const WORK_RAM: usize = 1024 * 1024 * 8;
+pub const VIDEO_RAM: usize = 1024 * 1024 * 8;
+pub const RESOLUTION: (usize, usize) = (160, 144);
+pub const OBJ: usize = 8 * 8; // or 8 * 16; max 40 per screen, 10 per line
+pub const PALETTES_BG: usize = 1 * 4;
+pub const PALETTES_OBJ: usize = 2 * 3;
+
 /*
  * Memory map
  */
@@ -25,10 +35,10 @@ impl MM {
 }
 
 /*
- * I/O Registers
+ * I/O ranges
  */
-pub struct IORegs;
-pub type IO = IORegs;
+pub struct IORanges;
+pub type IO = IORanges;
 
 impl IO {
     pub const JOYPAD: Range<usize> = 0xFF00..0xFF00 + 1; // Joypad input
@@ -64,28 +74,21 @@ impl VRAM {
 
 /*
  * Jump vectors
- *
- * RST instructions: 0x0000, 0x0008, 0x0010, 0x0018, 0x0020, 0x0028, 0x0030, 0x0038
- * Interrupts: 0x0040, 0x0048, 0x0050, 0x0058, 0x0060
  */
 pub const JUMP_VECTORS: Range<usize> = 0x0000..0x00FF;
-
-/*
- * Cartridge header
- */
-//pub const BOOT_ROM: Range<usize> = 0x0000..0x00FF;
-//pub const INTERRUPT_TABLE: Range<usize> = 0x0000..0x00FF;
-pub const CARTRIDGE_HEADER: Range<usize> = 0x0100..0x014F;
-//pub const CARTRIDGE_BODY: Range<usize> = 0x014F..0x3FFF;
+pub const RST_ADDRS: [usize; 8] = [
+    0x0000, 0x0008, 0x0010, 0x0018, 0x0020, 0x0028, 0x0030, 0x0038,
+];
+pub const INTERRUPT_ADDRS: [usize; 5] = [0x0040, 0x0048, 0x0050, 0x0058, 0x0060];
 
 /*
  * Hardware registers
  */
 pub struct HardwareRegisters;
-pub type HWReg = HardwareRegisters;
+pub type HWRegs = HardwareRegisters;
 
-impl HWReg {
-    pub const JOYP: usize = 0xFF00; // Joypad - Mixed
+impl HWRegs {
+    pub const P1_JOYP: usize = 0xFF00; // Joypad - Mixed
     pub const SB: usize = 0xFF01; // Serial transfer data - R/W
     pub const SC: usize = 0xFF02; // Serial transfer control - R/W
     pub const DIV: usize = 0xFF04; // Divider register - R/W
@@ -126,23 +129,24 @@ impl HWReg {
     pub const OBP0: usize = 0xFF48; // OBJ palette 0 data - R/W
     pub const OBP1: usize = 0xFF49; // OBJ palette 1 data - R/W
     pub const WY: usize = 0xFF4A; // Window Y position - R/W
-    pub const WX: usize = 0xFF4B; // Window X position plus 7 - R/W
-    pub const KEY1: usize = 0xFF4D; // Prepare speed switch - Mixed
-    pub const VBK: usize = 0xFF4F; // VRAM bank - R/W
-    pub const HDMA1: usize = 0xFF51; // VRAM DMA source high - W
-    pub const HDMA2: usize = 0xFF52; // VRAM DMA source low - W
-    pub const HDMA3: usize = 0xFF53; // VRAM DMA destination high - W
-    pub const HDMA4: usize = 0xFF54; // VRAM DMA destination low - W
-    pub const HDMA5: usize = 0xFF55; // VRAM DMA length/mode/start - R/W
-    pub const RP: usize = 0xFF56; // Infrared communications port - Mixed
-    pub const BCPS_BGPI: usize = 0xFF68; // Background color palette specification / Background palette index - R/W
-    pub const BCPD_BGPD: usize = 0xFF69; // Background color palette data / Background palette data - R/W
-    pub const OCPS_OBPI: usize = 0xFF6A; // OBJ color palette specification / OBJ palette index - R/W
-    pub const OCPD_OBPD: usize = 0xFF6B; // OBJ color palette data / OBJ palette data - R/W
-    pub const OPRI: usize = 0xFF6C; // Object priority mode - R/W
-    pub const SVBK: usize = 0xFF70; // WRAM bank - R/W
-    pub const PCM12: usize = 0xFF76; // Audio digital outputs 1 & 2 - R
-    pub const PCM34: usize = 0xFF77; // Audio digital outputs 3 & 4 - R
+    // pub const WX: usize = 0xFF4B; // Window X position plus 7 - R/W
+    // pub const KEY1: usize = 0xFF4D; // Prepare speed switch - Mixed
+    // pub const VBK: usize = 0xFF4F; // VRAM bank - R/W
+    pub const BANK: usize = 0xFF50; // Boot ROM mapping control - W
+    // pub const HDMA1: usize = 0xFF51; // VRAM DMA source high - W
+    // pub const HDMA2: usize = 0xFF52; // VRAM DMA source low - W
+    // pub const HDMA3: usize = 0xFF53; // VRAM DMA destination high - W
+    // pub const HDMA4: usize = 0xFF54; // VRAM DMA destination low - W
+    // pub const HDMA5: usize = 0xFF55; // VRAM DMA length/mode/start - R/W
+    // pub const RP: usize = 0xFF56; // Infrared communications port - Mixed
+    // pub const BCPS_BGPI: usize = 0xFF68; // Background color palette specification / Background palette index - R/W
+    // pub const BCPD_BGPD: usize = 0xFF69; // Background color palette data / Background palette data - R/W
+    // pub const OCPS_OBPI: usize = 0xFF6A; // OBJ color palette specification / OBJ palette index - R/W
+    // pub const OCPD_OBPD: usize = 0xFF6B; // OBJ color palette data / OBJ palette data - R/W
+    // pub const OPRI: usize = 0xFF6C; // Object priority mode - R/W
+    // pub const SVBK: usize = 0xFF70; // WRAM bank - R/W
+    // pub const PCM12: usize = 0xFF76; // Audio digital outputs 1 & 2 - R
+    // pub const PCM34: usize = 0xFF77; // Audio digital outputs 3 & 4 - R
     pub const IE: usize = 0xFFFF; // Interrupt enable - R/W
 }
 
