@@ -11,12 +11,12 @@ mod cpu;
 mod decode;
 mod gpu;
 mod instructions;
-mod memory;
+mod mmu;
 mod registers;
 
-use crate::cartridge::Cartridge;
 use crate::constants::*;
 use crate::cpu::Cpu;
+use crate::mmu::Mmu;
 
 const TARGET_FPS: usize = 60;
 const WINDOW_SCALE: usize = 1;
@@ -24,17 +24,16 @@ const WINDOW_RES: (usize, usize) = (RESOLUTION.0 * WINDOW_SCALE, RESOLUTION.1 * 
 const TARGET_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
 
 struct Gameboy {
-    cartridge: Cartridge,
     window: Window,
     window_buf: Vec<u32>,
-    cpu: Box<Cpu>,
+    cpu: Cpu,
 }
 
 impl Gameboy {
     fn new(path: &path::Path) -> Self {
-        let cartridge = Cartridge::new(path);
+        let mmu = Mmu::new(path);
         let mut window = Window::new(
-            &cartridge.title,
+            &mmu.cartridge.title,
             WINDOW_RES.0,
             WINDOW_RES.1,
             WindowOptions::default(),
@@ -42,20 +41,19 @@ impl Gameboy {
         .unwrap();
         window.set_target_fps(TARGET_FPS);
         let window_buf = vec![0; WINDOW_RES.0 * WINDOW_RES.1];
-        let cpu = Box::<Cpu>::default();
+        let cpu = Cpu::new(mmu);
 
         Gameboy {
             window,
             window_buf,
             cpu,
-            cartridge,
         }
     }
 
     fn update_window(&mut self) {
         let window = &mut self.window;
         let window_buf = &mut self.window_buf;
-        let gpu_buf = self.cpu.bus.gpu.canvas;
+        let gpu_buf = self.cpu.mmu.gpu.canvas;
 
         let (chunks, _) = gpu_buf.as_chunks::<4>();
         for (i, pixel) in chunks.iter().enumerate() {

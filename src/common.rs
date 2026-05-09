@@ -13,6 +13,12 @@ impl const Span for ops::Range<usize> {
     }
 }
 
+impl const Span for ops::RangeInclusive<usize> {
+    fn span(&self) -> usize {
+        *self.end() - *self.start() + 1
+    }
+}
+
 pub trait NumTraitsExt
 where
     Self: std::marker::Sized + PrimInt,

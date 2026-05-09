@@ -48,7 +48,7 @@ const ROM_BANKS: ConstMap<u8, usize, 12> = ConstMap::new([
     (0x54, 96),
 ]);
 
-const ROM_BANK_SIZE: usize = MM::ROM_0.end;
+const ROM_BANK_SIZE: usize = 0x4000;
 
 const CARTRIDGE_TYPES: ConstMap<u8, &str, 31> = ConstMap::new([
     (0x00, "ROM ONLY"),
@@ -96,7 +96,9 @@ const RAM_BANKS: ConstMap<u8, usize, 6> = ConstMap::new([
 pub struct Cartridge {
     pub title: String,
     rom: Vec<u8>,
+    rom_size: usize,
     ram_size: usize,
+    rom_bank: usize,
 }
 
 impl Cartridge {
@@ -104,8 +106,8 @@ impl Cartridge {
         let rom = fs::read(path).unwrap();
         assert!(rom.len() >= HEADER.end);
         assert!(rom[NINTENDO_LOGO_POS] == NINTENDO_LOGO);
-        let max_rom = *ROM_BANKS.get(&rom[ROM_SIZE]).unwrap() * ROM_BANK_SIZE;
-        assert!(rom.len() <= max_rom);
+        let rom_size = *ROM_BANKS.get(&rom[ROM_SIZE]).unwrap() * ROM_BANK_SIZE;
+        assert!(rom.len() <= rom_size);
         let title_range = if rom[CGB_FLAG] & 0x80 != 0 {
             ROM_TITLE_CGB
         } else {
@@ -119,14 +121,15 @@ impl Cartridge {
                 .collect(),
         )
         .unwrap();
-        debug!("Cartridge title {}", title);
+        debug!("Cartridge title {title}");
         let cartridge_type = CARTRIDGE_TYPES.get(&rom[CARTRIDGE_TYPE]).unwrap();
-        debug!("Cartridge type {}", cartridge_type);
+        debug!("Cartridge type {cartridge_type}");
         let ram_size = if cartridge_type.contains("RAM") {
             RAM_BANKS.get(&rom[RAM_SIZE]).copied().unwrap()
         } else {
             0
         };
+        debug!("Ram size: {ram_size}");
         let checksum: u8 = rom[HEADER_CHECKSUM_RANGE]
             .iter()
             .fold(0, |acc, b| acc.wrapping_sub(*b).wrapping_sub(1));
@@ -135,7 +138,17 @@ impl Cartridge {
         Cartridge {
             title,
             rom,
+            rom_size,
             ram_size,
+            rom_bank: 0,
         }
+    }
+
+    pub fn read(&self, addr: usize) -> u8 {
+        todo!()
+    }
+    pub fn write(&mut self, addr: usize, val: u8) {
+
+        todo!()
     }
 }

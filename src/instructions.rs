@@ -68,8 +68,8 @@ impl Cpu {
         let addr = self.fetch16();
         let value = self.read16(SP);
         let [lo, hi] = u16::to_le_bytes(value);
-        self.bus.write8(addr, lo);
-        self.bus.write8(addr.wrapping_add(1), hi);
+        self.mmu.write8(addr, lo);
+        self.mmu.write8(addr.wrapping_add(1), hi);
     }
 
     // LD HL, SP+e8
@@ -96,7 +96,7 @@ impl Cpu {
     pub fn ldh8_addr_a(&mut self, addr: Addr) {
         let addr = addr.read_addr(self);
         if LDH_RANGE.contains(&(addr as usize)) {
-            let value = self.bus.read8(addr);
+            let value = self.mmu.read8(addr);
             self.write8(Reg8::A, value);
         }
     }
@@ -109,7 +109,7 @@ impl Cpu {
         let addr = addr.read_addr(self);
         if LDH_RANGE.contains(&(addr as usize)) {
             let value = self.read8(Reg8::A);
-            self.bus.write8(addr, value);
+            self.mmu.write8(addr, value);
         }
     }
 

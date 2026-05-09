@@ -3,7 +3,7 @@
 use std::ops::RangeBounds;
 
 use crate::common::*;
-use crate::memory::*;
+use crate::mmu;
 use crate::constants::*;
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -49,7 +49,7 @@ pub struct Gpu {
 
 impl Gpu {
     const TILES_COUNT: usize = VRAM::TILE_BLOCKS.span();
-    const VRAM_SIZE: usize = MM::VRAM.span();
+    const VRAM_SIZE: usize = mmu::vram_range!().span();
     const CANVAS_SIZE: usize = 256 * 256 * 4;
 
     // TODO: address mode

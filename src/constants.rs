@@ -14,27 +14,6 @@ pub const PALETTES_BG: usize = 1 * 4;
 pub const PALETTES_OBJ: usize = 2 * 3;
 
 /*
- * Memory map
- */
-pub struct MemoryMap;
-pub type MM = MemoryMap;
-
-impl MM {
-    pub const ROM_0: Range<usize> = 0x0000..0x3FFF + 1; // 16 KiB ROM bank 00 - From cartridge, usually a fixed bank
-    pub const ROM_N: Range<usize> = 0x4000..0x7FFF + 1; // 16 KiB ROM Bank 01–NN - From cartridge, switchable bank via mapper (if any)
-    pub const VRAM: Range<usize> = 0x8000..0x9FFF + 1; // 8 KiB Video RAM (VRAM) - In CGB mode, switchable bank 0/1
-    pub const ERAM: Range<usize> = 0xA000..0xBFFF + 1; // 8 KiB External RAM - From cartridge, switchable bank if any
-    pub const WRAM: Range<usize> = 0xC000..0xCFFF + 1; // 4 KiB Work RAM (WRAM)
-    pub const WRAM_CGB: Range<usize> = 0xD000..0xDFFF + 1; // 4 KiB Work RAM (WRAM) - In CGB mode, switchable bank 1–7
-    pub const ECHO_RAM: Range<usize> = 0xE000..0xFDFF + 1; // Echo RAM (mirror of C000–DDFF) - Nintendo says use of this area is prohibited.
-    pub const OAM: Range<usize> = 0xFE00..0xFE9F + 1; // Object attribute memory (OAM)
-    pub const UNUSABLE: Range<usize> = 0xFEA0..0xFEFF + 1; // Not Usable - Nintendo says use of this area is prohibited.
-    pub const IO_REGS: Range<usize> = 0xFF00..0xFF7F + 1; // I/O Registers
-    pub const HRAM: Range<usize> = 0xFF80..0xFFFE + 1; // High RAM (HRAM)
-    pub const IE_REGS: Range<usize> = 0xFFFF..0xFFFF + 1; // Interrupt Enable register (IE)
-}
-
-/*
  * I/O ranges
  */
 pub struct IORanges;

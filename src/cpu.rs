@@ -8,25 +8,31 @@ use num_traits::WrappingShl;
 use crate::common::*;
 use crate::gpu::*;
 use crate::instructions::*;
-use crate::memory::*;
+use crate::mmu::*;
 use crate::registers::*;
 
-#[derive(Default, Debug, Clone, Copy)]
 pub struct Cpu {
     pub regs: Registers,
-    pub bus: MemoryBus,
+    pub mmu: Mmu,
 }
 
 impl Cpu {
+    pub fn new(mmu: Mmu) -> Self {
+        Cpu {
+            regs: Default::default(),
+            mmu,
+        }
+    }
+
     pub fn fetch8(&mut self) -> u8 {
-        let byte = self.bus.read8(self.regs.pc);
+        let byte = self.mmu.read8(self.regs.pc);
         self.regs.pc = self.regs.pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
 
         byte
     }
 
     pub fn fetch16(&mut self) -> u16 {
-        let word = self.bus.read16(self.regs.pc);
+        let word = self.mmu.read16(self.regs.pc);
         self.regs.pc = self.regs.pc.checked_add(2).unwrap(); // TODO: checked or wrapping?
 
         word
@@ -156,12 +162,12 @@ impl Cpu {
     }
 
     pub fn stack_push(&mut self, value: u16) {
-        self.bus.write16(self.regs.sp, value);
+        self.mmu.write16(self.regs.sp, value);
         self.regs.sp = self.regs.sp.checked_add(2).unwrap(); // TODO: checked or wrapping?
     }
 
     pub fn stack_pop(&mut self) -> u16 {
-        let res = self.bus.read16(self.regs.sp);
+        let res = self.mmu.read16(self.regs.sp);
         self.regs.sp = self.regs.sp.checked_sub(2).unwrap(); // TODO: checked or wrapping?
 
         res
@@ -283,14 +289,14 @@ impl Out16<Reg16> for Cpu {
 impl In8<Addr> for Cpu {
     fn read8(&mut self, src: Addr) -> u8 {
         let addr = src.read_addr(self);
-        self.bus.read8(addr)
+        self.mmu.read8(addr)
     }
 }
 
 impl Out8<Addr> for Cpu {
     fn write8(&mut self, dst: Addr, value: u8) {
         let addr = dst.read_addr(self);
-        self.bus.write8(addr, value)
+        self.mmu.write8(addr, value)
     }
 }
 

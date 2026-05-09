@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use crate::common::*;
-use crate::memory::*;
+use crate::mmu::*;
 use core::fmt;
 
 #[derive(Debug, Clone, Copy)]
