@@ -14,6 +14,8 @@ use crate::registers::*;
 pub struct Cpu {
     pub regs: Registers,
     pub mmu: Mmu,
+    pub ime: bool,
+    pub pending_enable_ime: bool,
 }
 
 impl Cpu {
@@ -21,6 +23,8 @@ impl Cpu {
         Cpu {
             regs: Default::default(),
             mmu,
+            ime: false,
+            pending_enable_ime: false,
         }
     }
 
@@ -49,6 +53,12 @@ impl Cpu {
             #[cfg(not(debug_assertions))]
             panic!("Unexpected instruction {opcode:X}");
         };
+
+        if self.pending_enable_ime {
+            self.pending_enable_ime = false;
+            self.ime = true;
+        }
+
         cycles
     }
 

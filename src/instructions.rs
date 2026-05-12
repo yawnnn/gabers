@@ -1,7 +1,7 @@
 use crate::common::*;
+use crate::constants::*;
 use crate::cpu::*;
 use crate::registers::*;
-use crate::constants::*;
 
 // TODO: checked or wrapping?
 // TODO: in JSON a8 means Addr::HiImm8 or Addr::Imm16
@@ -695,8 +695,20 @@ impl Cpu {
         self.jump_abs(addr);
     }
 
-    // TODO: RETI
-    // TODO: RST vec
+    // RETI
+    // Z N H C
+    // - - - -
+    pub fn reti(&mut self) {
+        self.ret();
+        self.ime = true;
+    }
+
+    // RST vec
+    // Z N H C
+    // - - - -
+    pub fn rst(&mut self, addr: u8) {
+        self.call(addr as u16);
+    }
 
     /*
      * CARRY FLAG INSTRUCTIONS
@@ -724,8 +736,10 @@ impl Cpu {
      * STACK INSTRUCTIONS
      */
 
-    // POP AF
     // POP r16
+    // Z N H C
+    // - - - -
+    // POP AF
     // Z N H C
     // * * * *
     pub fn pop16<O: Copy>(&mut self, dst: O)
@@ -739,7 +753,7 @@ impl Cpu {
     // PUSH AF
     // PUSH r16
     // Z N H C
-    // * * * *
+    // - - - -
     pub fn push16<I: Copy>(&mut self, src: I)
     where
         Self: In16<I>,
@@ -752,15 +766,59 @@ impl Cpu {
      * INTERRUPT INSTRUCTIONS
      */
 
-    // TODO: DI
-    // TODO: EI
+    // DI
+    // Z N H C
+    // - - - -
+    pub fn di(&mut self) {
+        self.ime = false;
+        self.pending_enable_ime = false;
+    }
+
+    // EI
+    // Z N H C
+    // - - - -
+    pub fn ei(&mut self) {
+        self.pending_enable_ime = true;
+    }
+
     // TODO: HALT
 
     /*
      * MISC INSTRUCTIONS
      */
 
-    // TODO: DAA
+    // DAA
+    // Z N H C
+    // * - 0 *
+    pub fn daa(&mut self) {
+        let mut adj: u8 = 0;
+        let half_carry = self.regs.get_flag(Flag::HF);
+        let mut carry =self.regs.get_flag(Flag::CF);
+        let a = self.read8(Reg8::A);
+        let res = if self.regs.get_flag(Flag::NF) {
+            if half_carry {
+                adj |= 0x06;
+            }
+            if carry {
+                adj |= 0x60;
+            }
+            a.wrapping_sub(adj)
+        }
+        else {
+            if half_carry || a & 0x0F > 0x09 {
+                adj |= 0x06;
+            }
+            if carry || a > 0x99 {
+                adj |= 0x60;
+                carry = true;
+            }
+            a.wrapping_add(adj)
+        };
+        self.write8(Reg8::A, res);
+        self.regs.set_flag(Flag::ZF, res == 0);
+        self.regs.set_flag(Flag::HF, false);
+        self.regs.set_flag(Flag::CF, carry);
+    }
 
     // NOP
     // Z N H C
