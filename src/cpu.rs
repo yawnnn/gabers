@@ -6,6 +6,7 @@ use std::io::Bytes;
 use num_traits::WrappingShl;
 
 use crate::common::*;
+use crate::decode::OPCODE_NOOP;
 use crate::gpu::*;
 use crate::instructions::*;
 use crate::mmu::*;
@@ -15,6 +16,8 @@ pub struct Cpu {
     pub regs: Registers,
     pub mmu: Mmu,
     pub ime: bool,
+    pub low_power_mode: bool,
+    pub halt_bug: bool,
     pub pending_enable_ime: bool,
 }
 
@@ -24,6 +27,8 @@ impl Cpu {
             regs: Default::default(),
             mmu,
             ime: false,
+            low_power_mode: false,
+            halt_bug: false,
             pending_enable_ime: false,
         }
     }
@@ -42,21 +47,45 @@ impl Cpu {
         word
     }
 
-    pub fn step(&mut self) -> u8 {
-        let opcode = self.fetch8();
-        let Some(cycles) = self.decode_exec_instr(opcode) else {
-            #[cfg(debug_assertions)]
-            {
-                eprintln!("Unexpected instruction {opcode:X}");
-                return 0;
-            }
-            #[cfg(not(debug_assertions))]
-            panic!("Unexpected instruction {opcode:X}");
+    fn handle_interrupts(&mut self) -> Option<u8> {
+        let bits = self.mmu.inter_enable & self.mmu.inter_flag & Interrupt::BITMASK;
+        let inter = (1 << bits.trailing_zeros()) as u8; // in case of multiple interrupts, the lowest bit has priority
+        if !self.ime || inter == 0 {
+            return None;
+        }
+        self.ime = false;
+        self.mmu.inter_flag &= !inter;
+        let addr = match inter {
+            0x01 => 0x40,
+            0x02 => 0x48,
+            0x04 => 0x50,
+            0x08 => 0x58,
+            0x10 => 0x60,
+            _ => unreachable!(),
         };
+        self.call(addr);
+
+        Some(5)
+    }
+
+    pub fn step(&mut self) -> u8 {
+        if let Some(cycles) = self.handle_interrupts() {
+            return cycles;
+        }
+        if self.low_power_mode {
+            return self.decode_exec_instr(OPCODE_NOOP);
+        }
+
+        let opcode = self.fetch8();
+        let cycles = self.decode_exec_instr(opcode);
 
         if self.pending_enable_ime {
             self.pending_enable_ime = false;
             self.ime = true;
+        }
+        if self.halt_bug {
+            self.halt_bug = false;
+            self.regs.pc = self.regs.pc.wrapping_sub(1);
         }
 
         cycles

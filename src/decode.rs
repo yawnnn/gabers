@@ -45,8 +45,10 @@ const CB_CYCLES: [u8; 256] = [
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // f
 ];
 
+pub const OPCODE_NOOP: u8 = 0x00;
+
 impl Cpu {
-    pub fn decode_exec_instr(&mut self, opcode: u8) -> Option<u8> {
+    pub fn decode_exec_instr(&mut self, opcode: u8) -> u8 {
         match opcode {
             // --- 8-bit operations
             // 8-bit loads
@@ -260,13 +262,13 @@ impl Cpu {
             0xF7 => self.rst(0x30),
             0xFF => self.rst(0x38),
             // --- Miscellaneous
-            0x76 => return None, //self.halt(),
+            0x76 => self.halt(),
             0x10 => self.stop(),
             0xF3 => self.di(),
             0xFB => self.ei(),
             0x3F => self.ccf(),
             0x37 => self.scf(),
-            0x00 => self.noop(),
+            0x00 => self.noop(), // OPCODE_NOOP
             0x27 => self.daa(),
             0x2F => self.cpl(),
             // --- 16-bit operations
@@ -305,13 +307,13 @@ impl Cpu {
                 return self.decode_exec_instr_cb(opcode_cb);
             }
             0xD3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
-                return None;
+                panic!("Unexpected instruction");
             }
         }
-        Some(OP_CYCLES[opcode as usize])
+        OP_CYCLES[opcode as usize]
     }
 
-    fn decode_exec_instr_cb(&mut self, opcode_cb: u8) -> Option<u8> {
+    fn decode_exec_instr_cb(&mut self, opcode_cb: u8) -> u8 {
         match opcode_cb {
             // --- 8-bit operations
             // 8-bit arithmetic
@@ -572,6 +574,6 @@ impl Cpu {
             0xB6 => self.res8(6, Addr::HL),
             0xBE => self.res8(7, Addr::HL),
         }
-        Some(CB_CYCLES[opcode_cb as usize])
+        CB_CYCLES[opcode_cb as usize]
     }
 }

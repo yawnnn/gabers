@@ -781,7 +781,14 @@ impl Cpu {
         self.pending_enable_ime = true;
     }
 
-    // TODO: HALT
+    // HALT
+    pub fn halt(&mut self) {
+        if !self.ime && (self.mmu.inter_enable & self.mmu.inter_flag) != 0 {
+            self.halt_bug = true;
+        } else {
+            self.low_power_mode = true;
+        }
+    }
 
     /*
      * MISC INSTRUCTIONS
@@ -793,7 +800,7 @@ impl Cpu {
     pub fn daa(&mut self) {
         let mut adj: u8 = 0;
         let half_carry = self.regs.get_flag(Flag::HF);
-        let mut carry =self.regs.get_flag(Flag::CF);
+        let mut carry = self.regs.get_flag(Flag::CF);
         let a = self.read8(Reg8::A);
         let res = if self.regs.get_flag(Flag::NF) {
             if half_carry {
@@ -803,8 +810,7 @@ impl Cpu {
                 adj |= 0x60;
             }
             a.wrapping_sub(adj)
-        }
-        else {
+        } else {
             if half_carry || a & 0x0F > 0x09 {
                 adj |= 0x06;
             }
