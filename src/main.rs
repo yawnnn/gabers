@@ -66,6 +66,32 @@ impl Gameboy {
             .update_with_buffer(window_buf, WINDOW_RES.0, WINDOW_RES.1)
             .unwrap();
     }
+
+    fn handle_input(&mut self) -> bool {
+        let joypad_keys = [
+            (minifb::Key::Right, mmu::JoypadKey::Right),
+            (minifb::Key::Up, mmu::JoypadKey::Up),
+            (minifb::Key::Left, mmu::JoypadKey::Left),
+            (minifb::Key::Down, mmu::JoypadKey::Down),
+            (minifb::Key::Z, mmu::JoypadKey::A),
+            (minifb::Key::X, mmu::JoypadKey::B),
+            (minifb::Key::Space, mmu::JoypadKey::Select),
+            (minifb::Key::Enter, mmu::JoypadKey::Start),
+        ];
+        for (key, joypad_key) in joypad_keys {
+            if self.window.is_key_down(key) {
+                self.cpu.mmu.joypad.press(joypad_key);
+            } else {
+                self.cpu.mmu.joypad.release(joypad_key);
+            }
+        }
+
+        if self.window.is_key_down(Key::Escape) {
+            return false;
+        }
+
+        self.window.is_open()
+    }
 }
 
 fn main() {
@@ -75,7 +101,7 @@ fn main() {
     let cartridge = path::PathBuf::from(&args[0]);
     let mut gb: Gameboy = Gameboy::new(&cartridge);
 
-    while gb.window.is_open() && !gb.window.is_key_down(Key::Escape) {
+    while gb.handle_input() {
         let mut ncycles = 0;
         while ncycles < TARGET_CYCLES {
             ncycles += gb.cpu.step() as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;

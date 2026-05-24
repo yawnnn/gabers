@@ -783,7 +783,7 @@ impl Cpu {
 
     // HALT
     pub fn halt(&mut self) {
-        if !self.ime && (self.mmu.inter_enable & self.mmu.inter_flag) != 0 {
+        if !self.ime && (*self.mmu.inter_enable & *self.mmu.inter_flag) != 0 {
             self.halt_bug = true;
         } else {
             self.low_power_mode = true;

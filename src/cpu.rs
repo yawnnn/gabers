@@ -48,13 +48,13 @@ impl Cpu {
     }
 
     fn handle_interrupts(&mut self) -> Option<u8> {
-        let bits = self.mmu.inter_enable & self.mmu.inter_flag & Interrupt::BITMASK;
+        let bits = *self.mmu.inter_enable & *self.mmu.inter_flag & Interrupt::BITMASK;
         let inter = (1 << bits.trailing_zeros()) as u8; // in case of multiple interrupts, the lowest bit has priority
         if !self.ime || inter == 0 {
             return None;
         }
         self.ime = false;
-        self.mmu.inter_flag &= !inter;
+        *self.mmu.inter_flag &= !inter;
         let addr = match inter {
             0x01 => 0x40,
             0x02 => 0x48,
