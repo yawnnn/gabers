@@ -1,96 +1,4 @@
-#![allow(unused)]
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::path;
-
-use crate::cartridge::Cartridge;
-use crate::constants::*;
-use crate::gpu::*;
-
-pub struct Interrupt(u8);
-
-impl Interrupt {
-    pub const VBLANK: u8 = 0x01;
-    pub const LCD: u8 = 0x02;
-    pub const TIMER: u8 = 0x04;
-    pub const SERIAL: u8 = 0x08;
-    pub const JOYPAD: u8 = 0x10;
-    pub const BITMASK: u8 = Self::VBLANK | Self::LCD | Self::TIMER | Self::SERIAL | Self::JOYPAD; // 0x1F or 0b0001_1111
-
-    fn new() -> Self {
-        Interrupt(0)
-    }
-}
-
-impl Deref for Interrupt {
-    type Target = u8;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Interrupt {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-#[rustfmt::skip]
-#[derive(Clone)]
-pub enum JoypadKey {
-    Right  = 0b0000_0001,
-    Left   = 0b0000_0010,
-    Up     = 0b0000_0100,
-    Down   = 0b0000_1000,
-    A      = 0b0001_0000,
-    B      = 0b0010_0000,
-    Select = 0b0100_0000,
-    Start  = 0b1000_0000,
-}
-
-pub struct Joypad {
-    state: u8,
-    select: u8,
-}
-
-impl Joypad {
-    pub fn new() -> Self {
-        Joypad { state: 0xFF, select: 0x00 }
-    }
-
-    pub fn press(&mut self, key: JoypadKey) {
-        self.state &= !(key as u8);
-    }
-
-    pub fn release(&mut self, key: JoypadKey) {
-        self.state |= key as u8;
-    }
-
-    pub const SELECT_BUTTONS_BIT: u8 = 0x20;
-    pub const SELECT_DPAD_BIT: u8 = 0x10;
-
-    pub fn read8(&self) -> u8 {
-        if self.select & Self::SELECT_BUTTONS_BIT == 0 {
-            return 0xC0 | self.state & 0x0F;
-        }
-        if self.select & Self::SELECT_DPAD_BIT == 0 {
-            return 0xC0 | (self.state >> 4) & 0x0F;
-        }
-        0xFF
-    }
-
-    pub fn write8(&mut self, val: u8) {
-        self.select = val;
-    }
-}
-
-pub struct Mmu {
-    pub cartridge: Cartridge,
-    pub gpu: Box<Gpu>,
-    pub joypad: Joypad,
-    pub inter_enable: Interrupt,
-    pub inter_flag: Interrupt,
-}
+use crate::gameboy::Gameboy;
 
 /// 16 KiB ROM bank 00 (From cartridge, usually a fixed bank) + 16 KiB ROM Bank 01–NN (From cartridge, switchable bank via mapper (if any))
 macro_rules! rom_range {
@@ -160,22 +68,7 @@ macro_rules! ie_reg {
     };
 }
 
-impl Mmu {
-    const RAM_SIZE: usize = u16::MAX as usize;
-
-    pub fn new(path: &path::Path) -> Self {
-        let cartridge = Cartridge::new(path);
-        let gpu = Box::<Gpu>::default();
-
-        Mmu {
-            cartridge,
-            gpu,
-            joypad: Joypad::new(),
-            inter_enable: Interrupt(0),
-            inter_flag: Interrupt(0),
-        }
-    }
-
+impl Gameboy {
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             rom_range!() => self.cartridge.read(addr as usize),

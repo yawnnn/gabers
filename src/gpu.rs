@@ -3,8 +3,8 @@
 use std::ops::RangeBounds;
 
 use crate::common::*;
-use crate::mmu;
 use crate::constants::*;
+use crate::mmu;
 
 #[derive(Default, Clone, Copy, Debug)]
 pub enum TileColor {
@@ -51,6 +51,14 @@ impl Gpu {
     const TILES_COUNT: usize = VRAM::TILE_BLOCKS.span();
     const VRAM_SIZE: usize = mmu::vram_range!().span();
     const CANVAS_SIZE: usize = 256 * 256 * 4;
+
+    pub fn new() -> Self {
+        Gpu {
+            tiles: [Default::default(); Self::TILES_COUNT],
+            vram: [0; Self::VRAM_SIZE],
+            canvas: [0; Self::CANVAS_SIZE],
+        }
+    }
 
     // TODO: address mode
     fn tile_idx(idx: u8) -> usize {
@@ -99,16 +107,6 @@ impl Gpu {
             let y = (addr % 32) * 8;
             let idx = self.vram[addr + VRAM::TMAP0.start];
             self.draw_tile(x, y, idx);
-        }
-    }
-}
-
-impl Default for Gpu {
-    fn default() -> Self {
-        Gpu {
-            tiles: [Default::default(); Self::TILES_COUNT],
-            vram: [0; Self::VRAM_SIZE],
-            canvas: [0; Self::CANVAS_SIZE],
         }
     }
 }

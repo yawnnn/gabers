@@ -1,9 +1,3 @@
-#![allow(unused)]
-
-use crate::common::*;
-use crate::mmu::*;
-use core::fmt;
-
 #[derive(Debug, Clone, Copy)]
 pub enum Reg8 {
     A,
@@ -47,31 +41,31 @@ pub enum Flag {
     /// - When the result of a 16-bit addition is higher than $FFFF.
     /// - When the result of a subtraction or comparison is lower than zero (like in Z80 and x86 CPUs, but unlike in 65XX and ARM CPUs).
     /// - When a rotate/shift operation shifts out a “1” bit.
-    CF,
+    C,
 
     /// Half-carry flag  
     /// These flags are used by the DAA instruction only.  
     /// Indicates carry for the lower 4 bits of the result.  
-    HF,
+    H,
 
     /// Subtraction flag  
     /// These flags are used by the DAA instruction only.  
     /// Indicates whether the previous instruction has been a subtraction.  
-    NF,
+    N,
 
     /// Zero flag  
     /// Is set if and only if the result of an operation is zero. Used by conditional jumps.  
-    ZF,
+    Z,
 }
 
 impl Flag {
     /// Get corresponding bitmask
     pub fn bitmask(&self) -> u8 {
         match self {
-            Flag::CF => 1 << 4,
-            Flag::HF => 1 << 5,
-            Flag::NF => 1 << 6,
-            Flag::ZF => 1 << 7,
+            Flag::C => 1 << 4,
+            Flag::H => 1 << 5,
+            Flag::N => 1 << 6,
+            Flag::Z => 1 << 7,
         }
     }
 }

@@ -10,7 +10,7 @@ pub const WORK_RAM: usize = 1024 * 1024 * 8;
 pub const VIDEO_RAM: usize = 1024 * 1024 * 8;
 pub const RESOLUTION: (usize, usize) = (160, 144);
 pub const OBJ: usize = 8 * 8; // or 8 * 16; max 40 per screen, 10 per line
-pub const PALETTES_BG: usize = 1 * 4;
+pub const PALETTES_BG: usize = 4;
 pub const PALETTES_OBJ: usize = 2 * 3;
 
 /*

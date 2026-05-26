@@ -1,60 +1,87 @@
-#![allow(unused)]
-
-use core::panic;
-use std::io::Bytes;
-
-use num_traits::WrappingShl;
-
 use crate::common::*;
 use crate::decode::OPCODE_NOOP;
-use crate::gpu::*;
-use crate::instructions::*;
-use crate::mmu::*;
+use crate::gameboy::Gameboy;
+use crate::interrupt::Interrupt;
 use crate::registers::*;
 
 pub struct Cpu {
     pub regs: Registers,
-    pub mmu: Mmu,
     pub ime: bool,
     pub low_power_mode: bool,
     pub halt_bug: bool,
     pub pending_enable_ime: bool,
+    pub gb: *mut Gameboy,
 }
 
 impl Cpu {
-    pub fn new(mmu: Mmu) -> Self {
+    pub fn new() -> Self {
         Cpu {
             regs: Default::default(),
-            mmu,
             ime: false,
             low_power_mode: false,
             halt_bug: false,
             pending_enable_ime: false,
+            gb: std::ptr::null_mut(),
         }
     }
 
+    pub fn gb(&mut self) -> &mut Gameboy {
+        // SAFETY: this is used to access data inside gb that's not already "in scope" (eg. cpu.gb().timer), so aliasing *shouldn't* be an issue
+        // TODO: this is still pretty unsafe and should be removed
+        unsafe { self.gb.as_mut().unwrap() }
+    }
+
+    pub fn set_gb(&mut self, gb: *mut Gameboy) {
+        self.gb = gb;
+    }
+
     pub fn fetch8(&mut self) -> u8 {
-        let byte = self.mmu.read8(self.regs.pc);
-        self.regs.pc = self.regs.pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
+        let pc = self.regs.pc;
+        let byte = self.gb().read8(pc);
+        self.regs.pc = pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
 
         byte
     }
 
     pub fn fetch16(&mut self) -> u16 {
-        let word = self.mmu.read16(self.regs.pc);
-        self.regs.pc = self.regs.pc.checked_add(2).unwrap(); // TODO: checked or wrapping?
+        let pc = self.regs.pc;
+        let word = self.gb().read16(pc);
+        self.regs.pc = pc.checked_add(2).unwrap(); // TODO: checked or wrapping?
 
         word
     }
 
+    pub fn read_addr(&mut self, addr: Addr) -> u16 {
+        match addr {
+            Addr::BC => self.read16(Reg16::BC),
+            Addr::DE => self.read16(Reg16::DE),
+            Addr::HL => self.read16(Reg16::HL),
+            Addr::HLI => {
+                let addr = self.read16(Reg16::HL);
+                self.write16(Reg16::HL, addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
+                addr
+            }
+            Addr::HLD => {
+                let addr = self.read16(Reg16::HL);
+                self.write16(Reg16::HL, addr.checked_sub(1).unwrap()); // TODO: checked or wrapping?
+                addr
+            }
+            Addr::Imm16 => self.fetch16(),
+            Addr::HighC => {
+                let value = self.read8(Reg8::C);
+                0xFF00 | value as u16
+            }
+        }
+    }
+
     fn handle_interrupts(&mut self) -> Option<u8> {
-        let bits = *self.mmu.inter_enable & *self.mmu.inter_flag & Interrupt::BITMASK;
+        let bits = *self.gb().inter_enable & *self.gb().inter_flag & Interrupt::BITMASK;
         let inter = (1 << bits.trailing_zeros()) as u8; // in case of multiple interrupts, the lowest bit has priority
         if !self.ime || inter == 0 {
             return None;
         }
         self.ime = false;
-        *self.mmu.inter_flag &= !inter;
+        *self.gb().inter_flag &= !inter;
         let addr = match inter {
             0x01 => 0x40,
             0x02 => 0x48,
@@ -98,10 +125,10 @@ impl Cpu {
         let (res, carry) = u8::bit_overflowing_add(&[reg_a, value, cf], 7);
         let (_, half_carry) = u8::bit_overflowing_add(&[reg_a, value, cf], 3);
 
-        self.regs.set_flag(Flag::ZF, res == 0);
-        self.regs.set_flag(Flag::NF, false);
-        self.regs.set_flag(Flag::HF, half_carry);
-        self.regs.set_flag(Flag::CF, carry);
+        self.regs.set_flag(Flag::Z, res == 0);
+        self.regs.set_flag(Flag::N, false);
+        self.regs.set_flag(Flag::H, half_carry);
+        self.regs.set_flag(Flag::C, carry);
 
         res
     }
@@ -113,10 +140,10 @@ impl Cpu {
         let (res, carry) = u8::bit_overflowing_sub(&[reg_a, value, cf], 8);
         let (_, half_carry) = u8::bit_overflowing_sub(&[reg_a, value, cf], 4);
 
-        self.regs.set_flag(Flag::ZF, res == 0);
-        self.regs.set_flag(Flag::NF, true);
-        self.regs.set_flag(Flag::HF, half_carry);
-        self.regs.set_flag(Flag::CF, carry);
+        self.regs.set_flag(Flag::Z, res == 0);
+        self.regs.set_flag(Flag::N, true);
+        self.regs.set_flag(Flag::H, half_carry);
+        self.regs.set_flag(Flag::C, carry);
 
         res
     }
@@ -124,11 +151,11 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rl(&mut self, value: u8) -> u8 {
-        let cf = self.regs.get_flag(Flag::CF);
+        let cf = self.regs.get_flag(Flag::C);
         let res = (value << 1) | cf as u8;
         let new_cf = value & 0x80;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -139,7 +166,7 @@ impl Cpu {
         let res = value.rotate_left(1);
         let new_cf = value & 0x80;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -147,11 +174,11 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rr(&mut self, value: u8) -> u8 {
-        let cf = self.regs.get_flag(Flag::CF);
+        let cf = self.regs.get_flag(Flag::C);
         let res = (value >> 1) | ((cf as u8) << 7);
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -162,7 +189,7 @@ impl Cpu {
         let res = value.rotate_right(1);
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -173,7 +200,7 @@ impl Cpu {
         let res = value << 1;
         let new_cf = value & 0x80;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -184,7 +211,7 @@ impl Cpu {
         let res = (value << 1) | (value & 0x80);
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -195,29 +222,31 @@ impl Cpu {
         let res = value << 1;
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::CF, new_cf != 0);
+        self.regs.set_flag(Flag::C, new_cf != 0);
 
         res
     }
 
     pub fn stack_push(&mut self, value: u16) {
-        self.mmu.write16(self.regs.sp, value);
-        self.regs.sp = self.regs.sp.checked_add(2).unwrap(); // TODO: checked or wrapping?
+        let sp = self.regs.sp;
+        self.gb().write16(sp, value);
+        self.regs.sp = sp.checked_add(2).unwrap(); // TODO: checked or wrapping?
     }
 
     pub fn stack_pop(&mut self) -> u16 {
-        let res = self.mmu.read16(self.regs.sp);
-        self.regs.sp = self.regs.sp.checked_sub(2).unwrap(); // TODO: checked or wrapping?
+        let sp = self.regs.sp;
+        let res = self.gb().read16(sp);
+        self.regs.sp = sp.checked_sub(2).unwrap(); // TODO: checked or wrapping?
 
         res
     }
 
     pub fn check_condition(&self, cond: Condition) -> bool {
         match cond {
-            Condition::CF => self.regs.get_flag(Flag::CF),
-            Condition::NoCF => !self.regs.get_flag(Flag::CF),
-            Condition::ZF => self.regs.get_flag(Flag::ZF),
-            Condition::NoZF => !self.regs.get_flag(Flag::ZF),
+            Condition::CF => self.regs.get_flag(Flag::C),
+            Condition::NoCF => !self.regs.get_flag(Flag::C),
+            Condition::ZF => self.regs.get_flag(Flag::Z),
+            Condition::NoZF => !self.regs.get_flag(Flag::Z),
         }
     }
 
@@ -252,31 +281,6 @@ pub enum Addr {
     HLD,
     Imm16,
     HighC,
-}
-
-impl Addr {
-    pub fn read_addr(&self, cpu: &mut Cpu) -> u16 {
-        match self {
-            Addr::BC => cpu.read16(Reg16::BC),
-            Addr::DE => cpu.read16(Reg16::DE),
-            Addr::HL => cpu.read16(Reg16::HL),
-            Addr::HLI => {
-                let addr = cpu.read16(Reg16::HL);
-                cpu.write16(Reg16::HL, addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
-                addr
-            }
-            Addr::HLD => {
-                let addr = cpu.read16(Reg16::HL);
-                cpu.write16(Reg16::HL, addr.checked_sub(1).unwrap()); // TODO: checked or wrapping?
-                addr
-            }
-            Addr::Imm16 => cpu.fetch16(),
-            Addr::HighC => {
-                let value = cpu.read8(Reg8::C);
-                0xFF00 | value as u16
-            }
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -327,15 +331,15 @@ impl Out16<Reg16> for Cpu {
 
 impl In8<Addr> for Cpu {
     fn read8(&mut self, src: Addr) -> u8 {
-        let addr = src.read_addr(self);
-        self.mmu.read8(addr)
+        let addr = self.read_addr(src);
+        self.gb().read8(addr)
     }
 }
 
 impl Out8<Addr> for Cpu {
     fn write8(&mut self, dst: Addr, value: u8) {
-        let addr = dst.read_addr(self);
-        self.mmu.write8(addr, value)
+        let addr = self.read_addr(dst);
+        self.gb().write8(addr, value)
     }
 }
 

@@ -1,7 +1,3 @@
-#![allow(unused)]
-
-use crate::cpu::Cpu;
-
 use crate::cpu::*;
 use crate::registers::{Reg8::*, Reg16::*, SP};
 
