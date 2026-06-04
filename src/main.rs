@@ -12,7 +12,6 @@ mod interrupt;
 mod joypad;
 mod mmu;
 mod registers;
-mod serial;
 mod timer;
 
 use std::env;

@@ -6,7 +6,6 @@ use crate::cpu::Cpu;
 use crate::gpu::Gpu;
 use crate::interrupt::Interrupt;
 use crate::joypad::{Joypad, JoypadKey};
-use crate::serial::Serial;
 use crate::timer::Timer;
 
 const TARGET_FPS: usize = 60;
@@ -21,7 +20,6 @@ pub struct Gameboy {
     pub inter_enable: Interrupt,
     pub inter_flag: Interrupt,
     pub joypad: Joypad,
-    pub _serial: Serial,
     pub timer: Timer,
 
     window: minifb::Window,
@@ -49,7 +47,6 @@ impl Gameboy {
             inter_enable: Interrupt::new(),
             inter_flag: Interrupt::new(),
             joypad: Joypad::new(),
-            _serial: Serial,
             timer: Timer::new(),
             window,
             window_buf,
