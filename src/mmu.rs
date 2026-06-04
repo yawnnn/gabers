@@ -81,6 +81,7 @@ impl Gameboy {
             unusable_range!() => 0xFF,
             io_regs_range!() => match addr {
                 0xFF00 => self.joypad.read8(), // HWReg::P1_JOYP
+                0xFF04..=0xFF07 => self.timer.read8(addr as usize),  // HWReg::TIMA, HWReg::TMA, HWReg::TAC
                 0xFF0F => *self.inter_flag,    // HWReg::IF
                 _ => todo!(),
             },
@@ -101,6 +102,7 @@ impl Gameboy {
             unusable_range!() => (),
             io_regs_range!() => match addr {
                 0xFF00 => self.joypad.write8(val), // HWReg::P1_JOYP
+                0xFF04..=0xFF07 => self.timer.write8(addr as usize, val), // HWReg::TIMA, HWReg::TMA, HWReg::TAC
                 0xFF0F => *self.inter_flag = val,  // HWReg::IF
                 _ => todo!(),
             },

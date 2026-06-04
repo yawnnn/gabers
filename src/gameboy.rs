@@ -22,7 +22,7 @@ pub struct Gameboy {
     pub inter_flag: Interrupt,
     pub joypad: Joypad,
     pub _serial: Serial,
-    pub _timer: Timer,
+    pub timer: Timer,
 
     window: minifb::Window,
     window_buf: Vec<u32>,
@@ -30,12 +30,7 @@ pub struct Gameboy {
 
 impl Gameboy {
     pub fn new(cartridge_path: impl AsRef<Path>) -> Box<Self> {
-        let cpu = Cpu::new();
-        let gpu = Gpu::new();
         let cartridge = Cartridge::new(cartridge_path.as_ref());
-        let joypad = Joypad::new();
-        let _serial = Serial;
-        let _timer = Timer;
 
         let mut window = minifb::Window::new(
             &cartridge.title,
@@ -49,13 +44,13 @@ impl Gameboy {
 
         let mut gb = Box::new(Gameboy {
             cartridge,
-            cpu,
-            gpu,
+            cpu: Cpu::new(),
+            gpu: Gpu::new(),
             inter_enable: Interrupt::new(),
             inter_flag: Interrupt::new(),
-            joypad,
-            _serial,
-            _timer,
+            joypad: Joypad::new(),
+            _serial: Serial,
+            timer: Timer::new(),
             window,
             window_buf,
         });

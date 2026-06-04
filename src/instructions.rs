@@ -835,6 +835,7 @@ impl Cpu {
     // Z N H C
     // - - - -
     pub fn stop(&mut self) {
+        // TODO: set DIV register to 0
         panic!("STOP")
     }
 }

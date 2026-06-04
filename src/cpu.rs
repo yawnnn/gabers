@@ -105,6 +105,7 @@ impl Cpu {
 
         let opcode = self.fetch8();
         let cycles = self.decode_exec_instr(opcode);
+        self.gb().timer.tick(cycles);
 
         if self.pending_enable_ime {
             self.pending_enable_ime = false;
