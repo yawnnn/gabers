@@ -9,8 +9,6 @@ use crate::joypad::{Joypad, JoypadKey};
 use crate::timer::Timer;
 
 const TARGET_FPS: usize = 60;
-const WINDOW_SCALE: usize = 1;
-const WINDOW_RES: (usize, usize) = (RESOLUTION.0 * WINDOW_SCALE, RESOLUTION.1 * WINDOW_SCALE);
 const TARGET_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
 
 pub struct Gameboy {
@@ -32,13 +30,12 @@ impl Gameboy {
 
         let mut window = minifb::Window::new(
             &cartridge.title,
-            WINDOW_RES.0,
-            WINDOW_RES.1,
+            SCREEN_W,
+            SCREEN_H,
             minifb::WindowOptions::default(),
         )
         .unwrap();
         window.set_target_fps(TARGET_FPS);
-        let window_buf = vec![0; WINDOW_RES.0 * WINDOW_RES.1];
 
         let mut gb = Box::new(Gameboy {
             cartridge,
@@ -49,7 +46,7 @@ impl Gameboy {
             joypad: Joypad::new(),
             timer: Timer::new(),
             window,
-            window_buf,
+            window_buf: vec![0; SCREEN_W * SCREEN_H],
         });
         let ptr = gb.as_mut() as *mut Gameboy;
         gb.cpu.set_gb(ptr);
@@ -58,19 +55,14 @@ impl Gameboy {
     }
 
     fn update_window(&mut self) {
-        let window = &mut self.window;
-        let window_buf = &mut self.window_buf;
-        let gpu_buf = self.gpu.canvas;
+        self.gpu.draw();
 
-        let (chunks, _) = gpu_buf.as_chunks::<4>();
-        for (i, pixel) in chunks.iter().enumerate() {
-            if i >= window_buf.len() {
-                break; // TODO: viewport
-            }
-            window_buf[i] = u32::from_le_bytes(*pixel);
+        for (i, rgb) in self.gpu.buf.iter().enumerate() {
+            let [r, g, b] = *rgb;
+            self.window_buf[i] = u32::from_le_bytes([r, g, b, 0xFF]);
         }
-        window
-            .update_with_buffer(window_buf, WINDOW_RES.0, WINDOW_RES.1)
+        self.window
+            .update_with_buffer(&self.window_buf, SCREEN_W, SCREEN_H)
             .unwrap();
     }
 

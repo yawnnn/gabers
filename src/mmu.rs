@@ -1,4 +1,4 @@
-use crate::gameboy::Gameboy;
+use crate::{common::Span, gameboy::Gameboy};
 
 /// 16 KiB ROM bank 00 (From cartridge, usually a fixed bank) + 16 KiB ROM Bank 01–NN (From cartridge, switchable bank via mapper (if any))
 macro_rules! rom_range {
@@ -43,6 +43,7 @@ macro_rules! oam_range {
         0xFE00..=0xFE9F
     };
 }
+pub(crate) use oam_range;
 /// Not Usable - Nintendo says use of this area is prohibited.
 macro_rules! unusable_range {
     () => {
@@ -69,21 +70,35 @@ macro_rules! ie_reg {
 }
 
 impl Gameboy {
+    pub fn dma_transfer(&mut self, val: u8) {
+        let src_base = (val as u16) << 8;
+        let dst_base = *oam_range!().start() as u16;
+        let nbytes = oam_range!().span() as u16;
+        for i in 0..nbytes {
+            let byte = self.read8(src_base + i);
+            self.write8(dst_base + i, byte);
+        }
+    }
+
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
-            rom_range!() => self.cartridge.read(addr as usize),
-            vram_range!() => self.gpu.read(addr as usize),
-            eram_range!() => self.cartridge.read(addr as usize),
+            rom_range!() => self.cartridge.read(addr),
+            vram_range!() => self.gpu.read8(addr),
+            eram_range!() => self.cartridge.read(addr),
             wram_range!() => todo!(),
             wram_cgb_range!() => todo!(),
             echo_ram_range!() => self.read8(addr - 0x2000),
-            oam_range!() => self.gpu.read(addr as usize),
+            oam_range!() => self.gpu.read8(addr),
             unusable_range!() => 0xFF,
             io_regs_range!() => match addr {
-                0xFF00 => self.joypad.read8(), // HWReg::P1_JOYP
-                0xFF01..=0xFF02 => todo!(), // HWReg::SB, HWReg::SC
-                0xFF04..=0xFF07 => self.timer.read8(addr as usize),  // HWReg::TIMA, HWReg::TMA, HWReg::TAC
-                0xFF0F => *self.inter_flag,    // HWReg::IF
+                0xFF00 => self.joypad.read8(),             // HWReg::P1_JOYP
+                0xFF01..=0xFF02 => todo!(),                // HWReg::SB, HWReg::SC
+                0xFF04..=0xFF07 => self.timer.read8(addr), // HWReg::TIMA, HWReg::TMA, HWReg::TAC
+                0xFF0F => *self.inter_flag,                // HWReg::IF
+                0xFF10..=0xFF3F => todo!(), // HWReg::NR10..HWReg::NR52, HWReg::WAVE_RAM
+                0xFF40..=0xFF45 => self.gpu.read8(addr), // HWReg::LCDC, HWReg::STAT, HWReg::SCY, HWReg::SCX, HWReg::LY, HWReg::LYC
+                0xFF46 => todo!(),                       // HWReg::DMA
+                0xFF47..=0xFF4B => todo!(), // HWReg::BGP, HWReg::OBP0, HWReg::OBP1, HWReg::WY, HWReg::WX
                 _ => todo!(),
             },
             hram_range!() => todo!(),
@@ -93,19 +108,23 @@ impl Gameboy {
 
     pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
-            rom_range!() => self.cartridge.write(addr as usize, val),
-            vram_range!() => self.gpu.write(addr as usize, val),
-            eram_range!() => self.cartridge.write(addr as usize, val),
+            rom_range!() => self.cartridge.write(addr, val),
+            vram_range!() => self.gpu.write8(addr, val),
+            eram_range!() => self.cartridge.write(addr, val),
             wram_range!() => todo!(),
             wram_cgb_range!() => todo!(),
             echo_ram_range!() => self.write8(addr - 0x2000, val),
-            oam_range!() => self.gpu.write(addr as usize, val),
+            oam_range!() => self.gpu.write8(addr, val),
             unusable_range!() => (),
             io_regs_range!() => match addr {
-                0xFF00 => self.joypad.write8(val), // HWReg::P1_JOYP
-                0xFF01..=0xFF02 => todo!(),    // HWReg::SB, HWReg::SC
-                0xFF04..=0xFF07 => self.timer.write8(addr as usize, val), // HWReg::TIMA, HWReg::TMA, HWReg::TAC
-                0xFF0F => *self.inter_flag = val,  // HWReg::IF
+                0xFF00 => self.joypad.write8(val),               // HWReg::P1_JOYP
+                0xFF01..=0xFF02 => todo!(),                      // HWReg::SB, HWReg::SC
+                0xFF04..=0xFF07 => self.timer.write8(addr, val), // HWReg::TIMA, HWReg::TMA, HWReg::TAC
+                0xFF0F => *self.inter_flag = val,                // HWReg::IF
+                0xFF40..=0xFF45 => self.gpu.write8(addr, val), // HWReg::LCDC, HWReg::STAT, HWReg::SCY, HWReg::SCX, HWReg::LY, HWReg::LYC
+                0xFF10..=0xFF3F => todo!(), // HWReg::NR10..HWReg::NR52, HWReg::WAVE_RAM
+                0xFF46 => self.dma_transfer(val), // HWReg::DMA
+                0xFF47..=0xFF4B => todo!(), // HWReg::BGP, HWReg::OBP0, HWReg::OBP1, HWReg::WY, HWReg::WX
                 _ => todo!(),
             },
             hram_range!() => todo!(),

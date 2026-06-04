@@ -15,7 +15,7 @@ impl Timer {
         }
     }
 
-    pub fn read8(&self, addr: usize) -> u8 {
+    pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             0xFF04 => self.raw_counter,
             0xFF05 => self.counter,
@@ -25,7 +25,7 @@ impl Timer {
         }
     }
 
-    pub fn write8(&mut self, addr: usize, val: u8) {
+    pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
             0xFF04 => self.raw_counter = 0,
             0xFF05 => self.counter = val,

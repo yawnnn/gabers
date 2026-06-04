@@ -6,9 +6,10 @@ use crate::gpu::Gpu;
 pub const MASTER_CLOCK: usize = 4_194_304;
 pub const MASTER_SYSTEM_CLOCK_RATIO: usize = 4;
 pub const SYSTEM_CLOCK: usize = MASTER_CLOCK/MASTER_SYSTEM_CLOCK_RATIO;
+pub const SCREEN_W: usize = 160;
+pub const SCREEN_H: usize = 144;
 pub const WORK_RAM: usize = 1024 * 1024 * 8;
 pub const VIDEO_RAM: usize = 1024 * 1024 * 8;
-pub const RESOLUTION: (usize, usize) = (160, 144);
 pub const OBJ: usize = 8 * 8; // or 8 * 16; max 40 per screen, 10 per line
 pub const PALETTES_BG: usize = 4;
 pub const PALETTES_OBJ: usize = 2 * 3;
@@ -32,23 +33,6 @@ impl IO {
     pub const VRAM_DMA: Range<usize> = 0xFF51..0xFF55 + 1; // VRAM DMA
     pub const BG_OBJ: Range<usize> = 0xFF68..0xFF6B + 1; // BG / OBJ Palettes
     pub const WRAM_BLANK: Range<usize> = 0xFF70..0xFF70 + 1; // WRAM Bank Select
-}
-
-/*
- * VRAM
- */
-#[allow(clippy::upper_case_acronyms)]
-pub struct VRAM;
-
-impl VRAM {
-    pub const TILE_BLOCKS: Range<usize> = 0x0000..0x1800;
-    pub const TILE_MAPS: Range<usize> = 0x1800..0x1FFF;
-
-    pub const TBLOCK0: Range<usize> = 0x0000..0x0800;
-    pub const TBLOCK1: Range<usize> = 0x0800..0x1000;
-    pub const TBLOCK2: Range<usize> = 0x1000..0x1800;
-    pub const TMAP0: Range<usize> = 0x1800..0x1C00;
-    pub const TMAP1: Range<usize> = 0x1C00..0x1FFF;
 }
 
 /*

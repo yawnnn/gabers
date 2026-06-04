@@ -144,11 +144,11 @@ impl Cartridge {
         }
     }
 
-    pub fn read(&self, addr: usize) -> u8 {
+    pub fn read(&self, addr: u16) -> u8 {
         todo!()
     }
     
-    pub fn write(&mut self, addr: usize, val: u8) {
+    pub fn write(&mut self, addr: u16, val: u8) {
         todo!()
     }
 }
