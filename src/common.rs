@@ -7,13 +7,13 @@ pub const trait Span {
     fn span(&self) -> usize;
 }
 
-impl const Span for ops::Range<usize> {
+const impl Span for ops::Range<usize> {
     fn span(&self) -> usize {
         self.end - self.start
     }
 }
 
-impl const Span for ops::RangeInclusive<usize> {
+const impl Span for ops::RangeInclusive<usize> {
     fn span(&self) -> usize {
         (*self.end() - *self.start()) + 1
     }
@@ -21,10 +21,10 @@ impl const Span for ops::RangeInclusive<usize> {
 
 pub trait NumTraitsExt
 where
-    Self: std::marker::Sized + PrimInt,
+    Self: std::marker::Sized,
 {
     /// return a `Self` such that all bits up to the `bit`th are 1 and the rest are 0
-    fn bit_mask(bit: usize) -> Self;
+    fn bitmask(bit: usize) -> Self;
 
     /// add `nums` with wrapping but check if `bit` has carry
     /// akin to overflowing_add but over N elements and bit-specific
@@ -35,11 +35,8 @@ where
     fn bit_overflowing_sub(nums: &[Self], bit: usize) -> (Self, bool);
 }
 
-impl<T> NumTraitsExt for T
-where
-    T: PrimInt + OverflowingAdd + WrappingSub,
-{
-    fn bit_mask(bit: usize) -> Self {
+impl<T: PrimInt + OverflowingAdd + WrappingSub> NumTraitsExt for T {
+    fn bitmask(bit: usize) -> Self {
         let max_bits = 8 * std::mem::size_of::<Self>();
         assert!(bit < max_bits);
 
@@ -53,7 +50,7 @@ where
     fn bit_overflowing_add(nums: &[Self], bit: usize) -> (Self, bool) {
         assert!(!nums.is_empty());
 
-        let mask = Self::bit_mask(bit);
+        let mask = Self::bitmask(bit);
         let mut acc = nums[0] & mask;
         let mut carry = false;
 
@@ -61,7 +58,7 @@ where
             let x_masked = x & mask;
             let (sum, overflow) = acc.overflowing_add(&x_masked);
 
-            if (sum & !mask) != T::zero() || overflow {
+            if (sum & !mask) != Self::zero() || overflow {
                 carry = true;
             }
 
@@ -74,7 +71,7 @@ where
     fn bit_overflowing_sub(nums: &[Self], bit: usize) -> (Self, bool) {
         assert!(!nums.is_empty());
 
-        let mask = Self::bit_mask(bit - 1);
+        let mask = Self::bitmask(bit - 1);
         let mut acc = nums[0] & mask;
         let mut borrow = false;
 
@@ -92,10 +89,10 @@ where
     }
 }
 
-pub struct ConstMap<K: Ord, V, const N: usize>([(K, V); N]);
+// TODO: const binary search
+pub struct ConstMap<K: Eq, V, const N: usize>([(K, V); N]);
 
-impl<K: Ord + Copy, V, const N: usize> ConstMap<K, V, N> {
-    // TODO: sorting is not const
+impl<K: Eq + Copy, V, const N: usize> ConstMap<K, V, N> {
     pub const fn new(map: [(K, V); N]) -> Self {
         //map.sort_by_key(|(k, _)| *k);
         ConstMap(map)
@@ -106,6 +103,6 @@ impl<K: Ord + Copy, V, const N: usize> ConstMap<K, V, N> {
         //     .binary_search_by_key(key, |&(k, _)| k)
         //     .map(|idx| &self.0[idx].1)
         //     .ok()
-        self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v)   // TODO: why is `map(|(_, v)| v)` not const?
+        self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v) // TODO: why is `map(|(_, v)| v)` not const?
     }
 }

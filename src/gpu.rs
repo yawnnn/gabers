@@ -1,12 +1,35 @@
 use crate::common::*;
 use crate::constants::*;
-use crate::mmu::vram_range;
+use crate::mmu::{oam_range, vram_range};
 
 const VRAM_START: u16 = *vram_range!().start() as u16;
 const VRAM_SIZE: usize = vram_range!().span();
 const TILE_SIDE: usize = 8; // 8x8 square
 const TILE_BYTES: usize = TILE_SIDE * TILE_SIDE / 8 * 2; // 8x8 pixels, 2 bits per pixel
 const TILEMAP_SIDE: usize = 32; // 32x32 square
+const OBJ_COUNT: usize = 40;
+const OBJ_START: u16 = *oam_range!().start() as u16;
+const OBJ_BYTES: usize = 4;
+const START_BLOCK_1: u16 = 0x8000;
+const START_BLOCK_2: u16 = 0x9000;
+const START_MAP_1: u16 = 0x9800;
+const START_MAP_2: u16 = 0x9C00;
+
+fn color_id(lo: u8, hi: u8, bit: usize) -> u8 {
+    let lo_bit = (lo >> bit) & 1;
+    let hi_bit = (hi >> bit) & 1;
+    hi_bit << 1 | lo_bit
+}
+
+#[derive(Clone, Copy)]
+struct Palette(u8);
+
+impl Palette {
+    fn grayscale(self, color_id: u8) -> GrayScale {
+        let color_shade = self.0 >> (color_id * 2) & 0b11;
+        GrayScale::from(color_shade)
+    }
+}
 
 #[derive(Default, Clone, Copy, Debug)]
 pub enum GrayScale {
@@ -36,7 +59,7 @@ impl GrayScale {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct LcdControl(u8);
 
 #[rustfmt::skip]
@@ -55,16 +78,33 @@ impl LcdControl {
     }
 }
 
+struct ObjectFlags(u8);
+
+#[rustfmt::skip]
+impl ObjectFlags {
+    const PRIORITY: u8 = 1 << 7;
+    const FLIP_Y: u8   = 1 << 6;
+    const FLIP_X: u8   = 1 << 5;
+    const PALETTE_2: u8  = 1 << 4;
+
+    fn get(&self, bit: u8) -> bool {
+        (self.0 & bit) != 0
+    }
+}
+
 pub struct Gpu {
     pub buf: [[u8; 3]; SCREEN_W * SCREEN_H],
     vram: [u8; VRAM_SIZE],
-    lcdc: LcdControl,
-    current_y: u8,  // LY
-    scroll_x: u8,   // SCX
-    scroll_y: u8,   // SCY
-    window_x: u8,   // WX
-    window_y: u8,   // WY
-    bg_palette: u8, // BGP
+    oam: [[u8; OBJ_BYTES]; OBJ_COUNT],
+    lcdc: LcdControl,      // LCDC
+    current_y: u8,         // LY
+    scroll_x: u8,          // SCX
+    scroll_y: u8,          // SCY
+    window_x: u8,          // WX
+    window_y: u8,          // WY
+    bg_palette: Palette,   // BGP
+    obj_palette1: Palette, // OBP0
+    obj_palette2: Palette, // OBP1
     priority: [bool; SCREEN_W],
 }
 
@@ -73,13 +113,16 @@ impl Gpu {
         Gpu {
             buf: [[0; 3]; SCREEN_W * SCREEN_H],
             vram: [0; VRAM_SIZE],
-            lcdc: LcdControl::default(),
+            oam: [[0; OBJ_BYTES]; OBJ_COUNT],
+            lcdc: LcdControl(0),
             current_y: 0,
             scroll_x: 0,
             scroll_y: 0,
             window_x: 0,
             window_y: 0,
-            bg_palette: 0,
+            bg_palette: Palette(0),
+            obj_palette1: Palette(0),
+            obj_palette2: Palette(0),
             priority: [false; SCREEN_W],
         }
     }
@@ -87,9 +130,15 @@ impl Gpu {
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             vram_range!() => self.vram[(addr - VRAM_START) as usize],
+            oam_range!() => {
+                let rel_addr = (addr - OBJ_START) as usize;
+                self.oam[rel_addr / OBJ_BYTES][rel_addr % OBJ_BYTES]
+            }
             0xFF40 => self.lcdc.0,
             0xFF44 => self.current_y,
-            0xFF47 => self.bg_palette,
+            0xFF47 => self.bg_palette.0,
+            0xFF48 => self.obj_palette1.0,
+            0xFF49 => self.obj_palette2.0,
             0xFF4A => self.window_x,
             0xFF4B => self.window_y,
             _ => todo!(),
@@ -99,18 +148,19 @@ impl Gpu {
     pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
             vram_range!() => self.vram[(addr - VRAM_START) as usize] = val,
+            oam_range!() => {
+                let rel_addr = (addr - OBJ_START) as usize;
+                self.oam[rel_addr / OBJ_BYTES][rel_addr % OBJ_BYTES] = val;
+            }
             0xFF40 => self.lcdc.0 = val,
             0xFF44 => (),
-            0xFF47 => self.bg_palette = val,
+            0xFF47 => self.bg_palette.0 = val,
+            0xFF48 => self.obj_palette1.0 = val,
+            0xFF49 => self.obj_palette2.0 = val,
             0xFF4A => self.window_x = val,
             0xFF4B => self.window_y = val,
             _ => todo!(),
         }
-    }
-
-    fn get_grayscale(&self, color_id: u8) -> GrayScale {
-        let color_shade = self.bg_palette >> (color_id * 2) & 0b11;
-        GrayScale::from(color_shade)
     }
 
     fn set_pixel(&mut self, x: usize, grayscale: GrayScale) {
@@ -118,56 +168,125 @@ impl Gpu {
         self.buf[idx] = grayscale.rgb();
     }
 
-    fn draw_tile(&mut self, tile_id: u8, current_x: usize) {
-        let (tile_base, tile_offset): (u16, i16) = if self.lcdc.get(LcdControl::TILE_BLOCK_2) {
-            (0x9000, tile_id as i8 as i16)
+    fn draw_background_line_with(
+        &mut self,
+        shift_x: u8,
+        scroll_x: u8,
+        scroll_y: u8,
+        lcdc_tilemap_2: u8,
+    ) {
+        let tilemap_base = if self.lcdc.get(lcdc_tilemap_2) {
+            START_MAP_2
         } else {
-            (0x8000, tile_id as i16)
+            START_MAP_1
         };
-        let tile_addr = tile_base.wrapping_add_signed(tile_offset * TILE_BYTES as i16);
-        let tile_byte = ((self.current_y as usize % TILE_SIDE) * 2) as u16;
-        let lo_by = self.read8(tile_addr + tile_byte);
-        let hi_by = self.read8(tile_addr + tile_byte + 1);
-        for j in 0..TILE_SIDE {
-            let bitmask = 1 << (TILE_SIDE - 1 - j);
-            let lo = (lo_by & bitmask) != 0;
-            let hi = (hi_by & bitmask) != 0;
-            let color_id = (hi as u8) << 1 | lo as u8;
-            let grayscale = self.get_grayscale(color_id);
-            self.priority[current_x + j] = color_id != 0;
-            self.set_pixel(current_x + j, grayscale);
+        let tilemap_y = self.current_y.wrapping_add(scroll_y) as u16 / TILEMAP_SIDE as u16;
+
+        for i in (0..SCREEN_W as u8).step_by(TILE_SIDE) {
+            let start_x = i.wrapping_add(shift_x) as usize;
+            if start_x >= SCREEN_W {
+                continue;
+            }
+            let tilemap_x = i.wrapping_add(scroll_x) as u16 / TILEMAP_SIDE as u16;
+            let tilemap_offset = tilemap_x + tilemap_y * TILEMAP_SIDE as u16;
+            let tile_id = self.read8(tilemap_base + tilemap_offset);
+            let (tile_base, tile_offset): (u16, i16) = if self.lcdc.get(LcdControl::TILE_BLOCK_2) {
+                (START_BLOCK_2, tile_id as i8 as i16)
+            } else {
+                (START_BLOCK_1, tile_id as i16)
+            };
+            let tile_addr = tile_base.wrapping_add_signed(tile_offset * TILE_BYTES as i16);
+            let tile_byte = ((self.current_y as usize % TILE_SIDE) * 2) as u16;
+            let lo = self.read8(tile_addr + tile_byte);
+            let hi = self.read8(tile_addr + tile_byte + 1);
+            for j in 0..TILE_SIDE {
+                let color_id = color_id(lo, hi, TILE_SIDE - 1 - j);
+                let grayscale = self.bg_palette.grayscale(color_id);
+                self.priority[start_x + j] = color_id != 0;
+                self.set_pixel(start_x + j, grayscale);
+            }
         }
     }
 
-    fn draw_line_background(&mut self) {
-        fn inner(gpu: &mut Gpu, start_x: u8, scroll_x: u8, scroll_y: u8, lcdc_tilemap_2: u8) {
-            let tilemap_base = if gpu.lcdc.get(lcdc_tilemap_2) { 0x9C00 } else { 0x9800 };
-            let tilemap_y = gpu.current_y.wrapping_add(scroll_y) as u16 / TILEMAP_SIDE as u16;
+    fn draw_background_line(&mut self) {
+        // the background can shifts the tiles (scroll), but draws the whole screen
+        // the window can shifts the output area (shift), but uses the same tiles
+        if self.lcdc.get(LcdControl::WINDOW_ENABLE) && self.window_y <= self.current_y {
+            let shift_x = self.window_x.wrapping_sub(7);
+            self.draw_background_line_with(shift_x, 0, 0, LcdControl::WINDOW_TILEMAP_2);
+        } else if self.lcdc.get(LcdControl::BG_ENABLE) {
+            self.draw_background_line_with(
+                0,
+                self.scroll_x,
+                self.scroll_y,
+                LcdControl::BG_TILEMAP_2,
+            );
+        }
+    }
 
-            for x in (0..SCREEN_W as u8).step_by(TILE_SIDE) {
-                let current_x = x.wrapping_add(start_x) as usize;
-                if current_x >= SCREEN_W {
-                    continue;
-                }
-                let tilemap_x = x.wrapping_add(scroll_x) as u16 / TILEMAP_SIDE as u16;
-                let tilemap_offset = tilemap_x + tilemap_y * TILEMAP_SIDE as u16;
-                let tile_id = gpu.read8(tilemap_base + tilemap_offset);
-                gpu.draw_tile(tile_id, current_x);
-            }
+    fn draw_objs_line(&mut self) {
+        if !self.lcdc.get(LcdControl::OBJ_ENABLE) {
+            return;
         }
 
-        // the window shifts where it draws the pixels, but keeps the same tilemap
-        // the background shifts the tilemap, but always draws the whole screen
-        if self.lcdc.get(LcdControl::WINDOW_ENABLE) && self.window_y <= self.current_y {
-            let start_x = self.window_x.wrapping_sub(7);
-            inner(self, start_x, 0, 0, LcdControl::WINDOW_TILEMAP_2);
-        } else if self.lcdc.get(LcdControl::BG_ENABLE) {
-            inner(self, 0, self.scroll_x, self.scroll_y, LcdControl::BG_TILEMAP_2);
+        let size = if self.lcdc.get(LcdControl::OBJ_SIZE_16) {
+            TILE_SIDE * 2
+        } else {
+            TILE_SIDE
+        };
+
+        for i in 0..OBJ_COUNT {
+            let addr = OBJ_START + (i * OBJ_BYTES) as u16;
+            let y = self.read8(addr).wrapping_sub(16);
+            let x = self.read8(addr + 1).wrapping_sub(8);
+            let mut tile_id = self.read8(addr + 2);
+            let flags = ObjectFlags(self.read8(addr + 3));
+
+            if self.current_y < y || self.current_y > y + size as u8 {
+                continue;
+            }
+
+            if size > TILE_SIDE {
+                tile_id &= 0xFE;
+            }
+            let palette = if flags.get(ObjectFlags::PALETTE_2) {
+                self.obj_palette2
+            } else {
+                self.obj_palette1
+            };
+
+            let tile_addr = START_BLOCK_1 + tile_id as u16 * TILE_BYTES as u16;
+            let mut tile_y = y % size as u8;
+            if flags.get(ObjectFlags::FLIP_Y) {
+                tile_y = size as u8 - 1 - tile_y;
+            }
+            let tile_byte = tile_y as u16 * 2;
+            let lo = self.read8(tile_addr + tile_byte);
+            let hi = self.read8(tile_addr + tile_byte + 1);
+
+            for j in 0..TILE_SIDE {
+                let bit = if flags.get(ObjectFlags::FLIP_X) {
+                    TILE_SIDE - 1 - j
+                } else {
+                    j
+                };
+                let current_x = (x as usize).wrapping_add(j);
+                let color_id = color_id(lo, hi, bit);
+                if current_x >= SCREEN_W
+                    || color_id == 0
+                    || (flags.get(ObjectFlags::PRIORITY) && self.priority[current_x])
+                {
+                    continue;
+                }
+                let grayscale = palette.grayscale(color_id);
+                self.set_pixel(current_x, grayscale);
+            }
         }
     }
 
     fn draw_line(&mut self) {
-        self.draw_line_background();
+        self.draw_background_line();
+        self.draw_objs_line();
     }
 
     pub fn draw(&mut self) {
