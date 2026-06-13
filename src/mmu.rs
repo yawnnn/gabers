@@ -6,13 +6,20 @@ macro_rules! rom_range {
         0x0000..=0x7FFF
     };
 }
-/// 8 KiB Video RAM (VRAM) - In CGB mode, switchable bank 0/1
-macro_rules! vram_range {
+/// 8 KiB Video RAM (VRAM) - In CGB mode, switchable bank 0/1 - blocks
+macro_rules! tiles_range {
     () => {
-        0x8000..=0x9FFF
+        0x8000..=0x97FF
     };
 }
-pub(crate) use vram_range;
+pub(crate) use tiles_range;
+/// 8 KiB Video RAM (VRAM) - In CGB mode, switchable bank 0/1 - maps
+macro_rules! tilemaps_range {
+    () => {
+        0x9800..=0x9FFF
+    };
+}
+pub(crate) use tilemaps_range;
 /// 8 KiB External RAM - From cartridge, switchable bank if any
 macro_rules! eram_range {
     () => {
@@ -83,7 +90,8 @@ impl Gameboy {
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             rom_range!() => self.cartridge.read(addr),
-            vram_range!() => self.gpu.read8(addr),
+            tiles_range!() => self.gpu.read8(addr),
+            tilemaps_range!() => self.gpu.read8(addr),
             eram_range!() => self.cartridge.read(addr),
             wram_range!() => todo!(),
             wram_cgb_range!() => todo!(),
@@ -109,7 +117,8 @@ impl Gameboy {
     pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
             rom_range!() => self.cartridge.write(addr, val),
-            vram_range!() => self.gpu.write8(addr, val),
+            tiles_range!() => self.gpu.write8(addr, val),
+            tilemaps_range!() => self.gpu.write8(addr, val),
             eram_range!() => self.cartridge.write(addr, val),
             wram_range!() => todo!(),
             wram_cgb_range!() => todo!(),

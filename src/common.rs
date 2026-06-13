@@ -106,3 +106,90 @@ impl<K: Eq + Copy, V, const N: usize> ConstMap<K, V, N> {
         self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v) // TODO: why is `map(|(_, v)| v)` not const?
     }
 }
+
+pub trait Array2D<const W: usize, const H: usize> {
+    type Item;
+
+    fn get_2d(&self, idx: impl Into<usize>) -> &Self::Item;
+    fn get_2d_mut(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
+    
+    fn coords_1to2(idx: usize) -> (usize, usize) {
+        if idx >= W * H {
+            panic!("Index {idx} out of bounds for array {W}x{H}");
+        }
+        (idx / H, idx % H)
+    }
+
+    #[allow(unused)]
+    fn coords_2to1((x, y): (usize, usize)) -> usize {
+        if x >= W || y >= H {
+            panic!("Index {x}x{y} out of bounds for array {W}x{H}");
+        }
+        x * H + y
+    }
+
+    fn set_2d(&mut self, idx: impl Into<usize>, val: Self::Item) {
+        *self.get_2d_mut(idx) = val;
+    }
+}
+
+impl<T, const W: usize, const H: usize> Array2D<W, H> for [[T; H]; W] {
+    type Item = T;
+
+    fn get_2d(&self, idx: impl Into<usize>) -> &T {
+        let (x, y) = Self::coords_1to2(idx.into());
+        &self[x][y]
+    }
+
+    fn get_2d_mut(&mut self, idx: impl Into<usize>) -> &mut T {
+        let (x, y) = Self::coords_1to2(idx.into());
+        &mut self[x][y]
+    }
+}
+
+pub trait Array3D<const W: usize, const H: usize, const D: usize> {
+    type Item;
+
+    fn get_3d(&self, idx: impl Into<usize>) -> &Self::Item;
+    fn get_3d_mut(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
+    
+    fn coords_1to3(idx: usize) -> (usize, usize, usize) {
+        if idx >= W * H * D {
+            panic!("Index {idx} out of bounds for array {W}x{H}x{D}");
+        }
+        let x = idx / (H * D);
+        let rem = idx % (H * D);
+        let y = rem / D;
+        let z = rem % D;
+
+        (x, y, z)
+    }
+
+    #[allow(unused)]
+    fn coords_3to1((x, y, z): (usize, usize, usize)) -> usize {
+        if x >= W || y >= H || z >= D {
+            panic!("Index {x}x{y}x{z} out of bounds for array {W}x{H}x{D}");
+        }
+        x * H * D + y * D + z
+    }
+
+    fn set_3d(&mut self, idx: impl Into<usize>, val: Self::Item) {
+        *self.get_3d_mut(idx) = val;
+    }
+}
+
+impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D>
+    for [[[T; D]; H]; W]
+{
+    type Item = T;
+
+    fn get_3d(&self, idx: impl Into<usize>) -> &T {
+        let (x, y, z) = Self::coords_1to3(idx.into());
+        &self[x][y][z]
+    }
+
+    fn get_3d_mut(&mut self, idx: impl Into<usize>) -> &mut T {
+        let (x, y, z) = Self::coords_1to3(idx.into());
+        &mut self[x][y][z]
+    }
+}
