@@ -10,6 +10,7 @@ const TILEMAP_SIDE: usize = 32; // 32x32 square
 const OBJ_COUNT: usize = 40;
 const OBJ_START: u16 = *oam_range!().start() as u16;
 const OBJ_BYTES: usize = 4;
+const MAX_OBJS_X_LINE: usize = 10;
 const START_BLOCK_1: u16 = 0x8000;
 const START_BLOCK_2: u16 = 0x9000;
 const START_MAP_1: u16 = 0x9800;
@@ -82,9 +83,9 @@ struct ObjectFlags(u8);
 
 #[rustfmt::skip]
 impl ObjectFlags {
-    const PRIORITY: u8 = 1 << 7;
-    const FLIP_Y: u8   = 1 << 6;
-    const FLIP_X: u8   = 1 << 5;
+    const PRIORITY: u8   = 1 << 7;
+    const FLIP_Y: u8     = 1 << 6;
+    const FLIP_X: u8     = 1 << 5;
     const PALETTE_2: u8  = 1 << 4;
 
     fn get(&self, bit: u8) -> bool {
@@ -225,6 +226,13 @@ impl Gpu {
     }
 
     fn draw_objs_line(&mut self) {
+        struct Object {
+            x: u8,
+            y: u8,
+            tile_id: u8,
+            flags: ObjectFlags,
+        }
+
         if !self.lcdc.get(LcdControl::OBJ_ENABLE) {
             return;
         }
@@ -235,29 +243,43 @@ impl Gpu {
             TILE_SIDE
         };
 
-        for i in 0..OBJ_COUNT {
-            let addr = OBJ_START + (i * OBJ_BYTES) as u16;
-            let y = self.read8(addr).wrapping_sub(16);
-            let x = self.read8(addr + 1).wrapping_sub(8);
-            let mut tile_id = self.read8(addr + 2);
-            let flags = ObjectFlags(self.read8(addr + 3));
+        let mut objs = self
+            .oam
+            .iter()
+            .filter_map(|&[y, x, tile_id, flags]| {
+                let y = y.wrapping_sub(16);
+                let x = x.wrapping_sub(8);
+                let tile_id = if size > TILE_SIDE {
+                    tile_id & 0xFE
+                } else {
+                    tile_id
+                };
+                let flags = ObjectFlags(flags);
+                let y_range = y..(y + size as u8);
+                y_range.contains(&self.current_y).then_some(Object {
+                    y,
+                    x,
+                    tile_id,
+                    flags,
+                })
+            })
+            .take(MAX_OBJS_X_LINE)
+            .enumerate()
+            .collect::<Vec<_>>();
 
-            if self.current_y < y || self.current_y > y + size as u8 {
-                continue;
-            }
+        objs.sort_by_key(|(i, obj)| (obj.x, *i));
 
-            if size > TILE_SIDE {
-                tile_id &= 0xFE;
-            }
-            let palette = if flags.get(ObjectFlags::PALETTE_2) {
+        // start from the last one so i overdraw overlapping ones with the highest priority one
+        for (_, obj) in objs.into_iter().rev() {
+            let palette = if obj.flags.get(ObjectFlags::PALETTE_2) {
                 self.obj_palette2
             } else {
                 self.obj_palette1
             };
 
-            let tile_addr = START_BLOCK_1 + tile_id as u16 * TILE_BYTES as u16;
-            let mut tile_y = y % size as u8;
-            if flags.get(ObjectFlags::FLIP_Y) {
+            let tile_addr = START_BLOCK_1 + obj.tile_id as u16 * TILE_BYTES as u16;
+            let mut tile_y = obj.y % size as u8;
+            if obj.flags.get(ObjectFlags::FLIP_Y) {
                 tile_y = size as u8 - 1 - tile_y;
             }
             let tile_byte = tile_y as u16 * 2;
@@ -265,16 +287,16 @@ impl Gpu {
             let hi = self.read8(tile_addr + tile_byte + 1);
 
             for j in 0..TILE_SIDE {
-                let bit = if flags.get(ObjectFlags::FLIP_X) {
+                let bit = if obj.flags.get(ObjectFlags::FLIP_X) {
                     TILE_SIDE - 1 - j
                 } else {
                     j
                 };
-                let current_x = (x as usize).wrapping_add(j);
+                let current_x = (obj.x as usize).wrapping_add(j);
                 let color_id = color_id(lo, hi, bit);
                 if current_x >= SCREEN_W
                     || color_id == 0
-                    || (flags.get(ObjectFlags::PRIORITY) && self.priority[current_x])
+                    || (obj.flags.get(ObjectFlags::PRIORITY) && self.priority[current_x])
                 {
                     continue;
                 }
