@@ -48,8 +48,8 @@ impl Gameboy {
             window,
             window_buf: vec![0; SCREEN_W * SCREEN_H],
         });
-        let ptr = gb.as_mut() as *mut Gameboy;
-        gb.cpu.set_gb(ptr);
+        gb.cpu.gb = gb.as_mut() as *mut Gameboy;
+        gb.gpu.gb = gb.as_mut() as *mut Gameboy;
 
         gb
     }
@@ -79,6 +79,7 @@ impl Gameboy {
         for (key, joypad_key) in joypad_keys {
             if self.window.is_key_down(key) {
                 self.joypad.press(joypad_key);
+                self.inter_flag.raise(Interrupt::JOYPAD);
             } else {
                 self.joypad.release(joypad_key);
             }

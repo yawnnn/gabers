@@ -1,18 +1,11 @@
 #![allow(unused)]
-use std::ops::Range;
 
-use crate::gpu::Gpu;
+use std::ops::Range;
 
 pub const MASTER_CLOCK: usize = 4_194_304;
 pub const MASTER_SYSTEM_CLOCK_RATIO: usize = 4;
-pub const SYSTEM_CLOCK: usize = MASTER_CLOCK/MASTER_SYSTEM_CLOCK_RATIO;
 pub const SCREEN_W: usize = 160;
 pub const SCREEN_H: usize = 144;
-pub const WORK_RAM: usize = 1024 * 1024 * 8;
-pub const VIDEO_RAM: usize = 1024 * 1024 * 8;
-pub const OBJ: usize = 8 * 8; // or 8 * 16; max 40 per screen, 10 per line
-pub const PALETTES_BG: usize = 4;
-pub const PALETTES_OBJ: usize = 2 * 3;
 
 /*
  * I/O ranges

@@ -9,7 +9,7 @@ pub struct Cpu {
     pub low_power_mode: bool,
     pub halt_bug: bool,
     pub pending_enable_ime: bool,
-    gb: *mut Gameboy,
+    pub gb: *mut Gameboy,
 }
 
 impl Cpu {
@@ -25,13 +25,10 @@ impl Cpu {
     }
 
     pub fn gb(&mut self) -> &mut Gameboy {
+        assert!(!self.gb.is_null(), "Expected valid pointer");
         // SAFETY: this is used to access data inside gb that's not already "in scope" (eg. cpu.gb().timer), so aliasing *shouldn't* be an issue
         // TODO: this is still pretty unsafe and should be removed
         unsafe { self.gb.as_mut().unwrap() }
-    }
-
-    pub fn set_gb(&mut self, gb: *mut Gameboy) {
-        self.gb = gb;
     }
 
     pub fn fetch8(&mut self) -> u8 {
