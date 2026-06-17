@@ -9,7 +9,7 @@ use crate::joypad::{Joypad, JoypadKey};
 use crate::timer::Timer;
 
 const TARGET_FPS: usize = 60;
-const TARGET_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
+const FRAME_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
 
 pub struct Gameboy {
     pub cartridge: Cartridge,
@@ -55,8 +55,6 @@ impl Gameboy {
     }
 
     fn update_window(&mut self) {
-        self.gpu.draw();
-
         for (i, rgb) in self.gpu.buf.iter().enumerate() {
             let [r, g, b] = *rgb;
             self.window_buf[i] = u32::from_le_bytes([r, g, b, 0xFF]);
@@ -77,6 +75,7 @@ impl Gameboy {
             (minifb::Key::Space, JoypadKey::Select),
             (minifb::Key::Enter, JoypadKey::Start),
         ];
+
         for (key, joypad_key) in joypad_keys {
             if self.window.is_key_down(key) {
                 self.joypad.press(joypad_key);
@@ -92,11 +91,20 @@ impl Gameboy {
         self.window.is_open()
     }
 
+    fn step(&mut self) -> u32 {
+        let system_cycles = self.cpu.step();
+        let master_cycles = system_cycles as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
+        self.timer.tick(master_cycles);
+        self.gpu.draw(master_cycles);
+
+        master_cycles
+    }
+
     pub fn main_loop(&mut self) {
         while self.handle_input() {
-            let mut ncycles = 0;
-            while ncycles < TARGET_CYCLES {
-                ncycles += self.cpu.step() as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
+            let mut cycles = 0;
+            while cycles < FRAME_CYCLES {
+                cycles += self.step();
             }
             self.update_window();
         }

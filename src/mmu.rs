@@ -1,4 +1,4 @@
-use crate::{common::Span, gameboy::Gameboy};
+use crate::{gameboy::Gameboy, gpu::Gpu};
 
 /// 16 KiB ROM bank 00 (From cartridge, usually a fixed bank) + 16 KiB ROM Bank 01–NN (From cartridge, switchable bank via mapper (if any))
 macro_rules! rom_range {
@@ -75,18 +75,62 @@ macro_rules! ie_reg {
         0xFFFF
     };
 }
+/// Joypad input
+macro_rules! joypad_addr {
+    () => { 
+        0xFF00
+    };
+}
+/// Serial transfer
+macro_rules! serial_range {
+    () => { 
+        0xFF01..=0xFF02
+    };
+}
+/// Timer and divider
+macro_rules! timer_range {
+    () => { 
+        0xFF04..=0xFF07
+    };
+}
+/// Interrupts
+macro_rules! inter_flag_addr {
+    () => { 
+        0xFF0F
+    };
+}
+/// Audio
+macro_rules! audio_range {
+    () => { 
+        0xFF10..=0xFF3F
+    };
+}
+/// LCD Control, Status, Position and Scorlling
+macro_rules! lcd_range {
+    () => { 
+        0xFF40..=0xFF45
+    };
+}
+/// OAM DMA transfer
+macro_rules! dma_addr {
+    () => { 
+        0xFF46
+    };
+}
+/// Palettes
+macro_rules! palette_range {
+    () => { 
+        0xFF47..=0xFF49
+    };
+}
+/// Window position
+macro_rules! window_range {
+    () => { 
+        0xFF4A..=0xFF4B
+    };
+}
 
 impl Gameboy {
-    pub fn dma_transfer(&mut self, val: u8) {
-        let src_base = (val as u16) << 8;
-        let dst_base = *oam_range!().start() as u16;
-        let nbytes = oam_range!().span() as u16;
-        for i in 0..nbytes {
-            let byte = self.read8(src_base + i);
-            self.write8(dst_base + i, byte);
-        }
-    }
-
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             rom_range!() => self.cartridge.read(addr),
@@ -99,18 +143,19 @@ impl Gameboy {
             oam_range!() => self.gpu.read8(addr),
             unusable_range!() => 0xFF,
             io_regs_range!() => match addr {
-                0xFF00 => self.joypad.read8(),             // HWReg::P1_JOYP
-                0xFF01..=0xFF02 => todo!(),                // HWReg::SB, HWReg::SC
-                0xFF04..=0xFF07 => self.timer.read8(addr), // HWReg::TIMA, HWReg::TMA, HWReg::TAC
-                0xFF0F => *self.inter_flag,                // HWReg::IF
-                0xFF10..=0xFF3F => todo!(), // HWReg::NR10..HWReg::NR52, HWReg::WAVE_RAM
-                0xFF40..=0xFF45 => self.gpu.read8(addr), // HWReg::LCDC, HWReg::STAT, HWReg::SCY, HWReg::SCX, HWReg::LY, HWReg::LYC
-                0xFF46 => todo!(),                       // HWReg::DMA
-                0xFF47..=0xFF4B => todo!(), // HWReg::BGP, HWReg::OBP0, HWReg::OBP1, HWReg::WY, HWReg::WX
+                joypad_addr!() => self.joypad.read8(),
+                serial_range!() => todo!(),
+                timer_range!() => self.timer.read8(addr),
+                inter_flag_addr!() => *self.inter_flag,
+                audio_range!() => todo!(),
+                lcd_range!() => self.gpu.read8(addr),
+                dma_addr!() => todo!(),
+                palette_range!() => self.gpu.read8(addr),
+                window_range!() => self.gpu.read8(addr),
                 _ => todo!(),
             },
             hram_range!() => todo!(),
-            ie_reg!() => *self.inter_enable, // HWReg::IE
+            ie_reg!() => *self.inter_enable,
         }
     }
 
@@ -126,18 +171,19 @@ impl Gameboy {
             oam_range!() => self.gpu.write8(addr, val),
             unusable_range!() => (),
             io_regs_range!() => match addr {
-                0xFF00 => self.joypad.write8(val),               // HWReg::P1_JOYP
-                0xFF01..=0xFF02 => todo!(),                      // HWReg::SB, HWReg::SC
-                0xFF04..=0xFF07 => self.timer.write8(addr, val), // HWReg::TIMA, HWReg::TMA, HWReg::TAC
-                0xFF0F => *self.inter_flag = val,                // HWReg::IF
-                0xFF40..=0xFF45 => self.gpu.write8(addr, val), // HWReg::LCDC, HWReg::STAT, HWReg::SCY, HWReg::SCX, HWReg::LY, HWReg::LYC
-                0xFF10..=0xFF3F => todo!(), // HWReg::NR10..HWReg::NR52, HWReg::WAVE_RAM
-                0xFF46 => self.dma_transfer(val), // HWReg::DMA
-                0xFF47..=0xFF4B => todo!(), // HWReg::BGP, HWReg::OBP0, HWReg::OBP1, HWReg::WY, HWReg::WX
+                joypad_addr!() => self.joypad.write8(val),
+                serial_range!() => todo!(),
+                timer_range!() => self.timer.write8(addr, val),
+                inter_flag_addr!() => *self.inter_flag = val,
+                audio_range!() => todo!(),
+                lcd_range!() => self.gpu.write8(addr, val),
+                dma_addr!() => Gpu::dma_transfer(self, val),
+                palette_range!() => self.gpu.write8(addr, val),
+                window_range!() => self.gpu.write8(addr, val),
                 _ => todo!(),
             },
             hram_range!() => todo!(),
-            ie_reg!() => *self.inter_enable = val, // HWReg::IE
+            ie_reg!() => *self.inter_enable = val,
         }
     }
 

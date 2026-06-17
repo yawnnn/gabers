@@ -3,6 +3,7 @@ use num_traits::WrappingSub;
 use num_traits::ops::overflowing::OverflowingAdd;
 use std::ops;
 
+#[allow(unused)]
 pub const trait Span {
     fn span(&self) -> usize;
 }

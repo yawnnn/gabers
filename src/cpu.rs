@@ -1,5 +1,4 @@
 use crate::common::*;
-use crate::decode::OPCODE_NOOP;
 use crate::gameboy::Gameboy;
 use crate::interrupt::Interrupt;
 use crate::registers::*;
@@ -10,7 +9,7 @@ pub struct Cpu {
     pub low_power_mode: bool,
     pub halt_bug: bool,
     pub pending_enable_ime: bool,
-    pub gb: *mut Gameboy,
+    gb: *mut Gameboy,
 }
 
 impl Cpu {
@@ -100,12 +99,11 @@ impl Cpu {
             return cycles;
         }
         if self.low_power_mode {
-            return self.decode_exec_instr(OPCODE_NOOP);
+            return 1;   // NOOP
         }
 
         let opcode = self.fetch8();
         let cycles = self.decode_exec_instr(opcode);
-        self.gb().timer.tick(cycles);
 
         if self.pending_enable_ime {
             self.pending_enable_ime = false;

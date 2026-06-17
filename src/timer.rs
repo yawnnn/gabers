@@ -35,10 +35,10 @@ impl Timer {
         }
     }
 
-    pub fn tick(&mut self, cycles: u8) {
-        let raw_counter = self.raw_counter as u16 + cycles as u16;
+    pub fn tick(&mut self, cycles: u32) {
+        let raw_counter = self.raw_counter as u32 + cycles;
         if self.control & 0b100 != 0 {
-            let modulo: u16 = [256, 4, 16, 64][(self.control & 0b11) as usize] * 4;
+            let modulo: u32 = [256, 4, 16, 64][(self.control & 0b11) as usize] * 4;
             if raw_counter.is_multiple_of(modulo) {
                 match self.counter.checked_add(1) {
                     Some(val) => self.counter = val,
@@ -46,6 +46,6 @@ impl Timer {
                 }
             }
         }
-        self.raw_counter = self.raw_counter.wrapping_add(cycles);
+        self.raw_counter = self.raw_counter.wrapping_add(cycles as u8);
     }
 }

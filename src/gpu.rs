@@ -1,5 +1,6 @@
 use crate::common::*;
 use crate::constants::*;
+use crate::gameboy::Gameboy;
 use crate::mmu::{oam_range, tilemaps_range, tiles_range};
 
 const TILES_START: u16 = *tiles_range!().start() as u16;
@@ -62,14 +63,14 @@ struct LcdControl(u8);
 
 #[rustfmt::skip]
 impl LcdControl {
-    const LCD_ENABLE: u8       = 1 << 7; // LCDC.7
-    const WINDOW_TILEMAP_2: u8 = 1 << 6; // LCDC.6
-    const WINDOW_ENABLE: u8    = 1 << 5; // LCDC.5
-    const TILE_BLOCK_2: u8     = 1 << 4; // LCDC.4
-    const BG_TILEMAP_2: u8     = 1 << 3; // LCDC.3
-    const OBJ_SIZE_16: u8      = 1 << 2; // LCDC.2
-    const OBJ_ENABLE: u8       = 1 << 1; // LCDC.1
     const BG_ENABLE: u8        = 1 << 0; // LCDC.0
+    const OBJ_ENABLE: u8       = 1 << 1; // LCDC.1
+    const OBJ_SIZE_16: u8      = 1 << 2; // LCDC.2
+    const BG_TILEMAP_2: u8     = 1 << 3; // LCDC.3
+    const TILE_BLOCK_2: u8     = 1 << 4; // LCDC.4
+    const WINDOW_ENABLE: u8    = 1 << 5; // LCDC.5
+    const WINDOW_TILEMAP_2: u8 = 1 << 6; // LCDC.6
+    const LCD_ENABLE: u8       = 1 << 7; // LCDC.7
 
     fn get(&self, bit: u8) -> bool {
         (self.0 & bit) != 0
@@ -80,14 +81,29 @@ struct ObjectFlags(u8);
 
 #[rustfmt::skip]
 impl ObjectFlags {
-    const PRIORITY: u8   = 1 << 7;
-    const FLIP_Y: u8     = 1 << 6;
-    const FLIP_X: u8     = 1 << 5;
     const PALETTE_2: u8  = 1 << 4;
+    const FLIP_X: u8     = 1 << 5;
+    const FLIP_Y: u8     = 1 << 6;
+    const PRIORITY: u8   = 1 << 7;
 
     fn get(&self, bit: u8) -> bool {
         (self.0 & bit) != 0
     }
+}
+
+enum GpuMode {
+    OamScan,
+    Draw,
+    HBlank,
+    VBlank,
+}
+
+impl GpuMode {
+    const OAM_SCAN_END: u32 = 80;
+    const DRAW_END: u32 = Self::OAM_SCAN_END + 172;
+    const HBLANK_END: u32 = Self::DRAW_END + 204;
+    const FRAME_END: u32 = 456;
+    const VBLANK_LEN: usize = 10;
 }
 
 pub struct Gpu {
@@ -95,7 +111,9 @@ pub struct Gpu {
     tiles: [[[u8; TILE_SIZE]; TILE_COUNT]; 3],
     tilemaps: [[[u8; TILEMAP_SIDE]; TILEMAP_SIDE]; 2],
     oam: [[u8; OBJ_SIZE]; OBJ_COUNT],
-    lcdc: LcdControl,           // LCDC
+    lcdc: LcdControl, // LCDC
+    mode: GpuMode,
+    dots: u32,
     current_y: u8,              // LY
     scroll_x: u8,               // SCX
     scroll_y: u8,               // SCY
@@ -114,6 +132,8 @@ impl Gpu {
             tilemaps: [[[0; TILEMAP_SIDE]; TILEMAP_SIDE]; 2],
             oam: [[0; OBJ_SIZE]; OBJ_COUNT],
             lcdc: LcdControl(0),
+            mode: GpuMode::OamScan,
+            dots: 0,
             current_y: 0,
             scroll_x: 0,
             scroll_y: 0,
@@ -125,11 +145,37 @@ impl Gpu {
         }
     }
 
+    fn oam_access(&self) -> bool {
+        !matches!(self.mode, GpuMode::OamScan | GpuMode::Draw)
+    }
+
+    fn vram_access(&self) -> bool {
+        !matches!(self.mode, GpuMode::Draw)
+    }
+
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
-            tiles_range!() => *self.tiles.get_3d(addr - TILES_START),
-            tilemaps_range!() => *self.tilemaps.get_3d(addr - TILEMAPS_START),
-            oam_range!() => *self.oam.get_2d(addr - OBJ_START),
+            tiles_range!() => {
+                if self.vram_access() {
+                    *self.tiles.get_3d(addr - TILES_START)
+                } else {
+                    0xFF
+                }
+            }
+            tilemaps_range!() => {
+                if self.vram_access() {
+                    *self.tilemaps.get_3d(addr - TILEMAPS_START)
+                } else {
+                    0xFF
+                }
+            }
+            oam_range!() => {
+                if self.oam_access() {
+                    *self.oam.get_2d(addr - OBJ_START)
+                } else {
+                    0xFF
+                }
+            }
             0xFF40 => self.lcdc.0,
             0xFF44 => self.current_y,
             0xFF47 => self.bg_palette.0,
@@ -143,9 +189,21 @@ impl Gpu {
 
     pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
-            tiles_range!() => self.tiles.set_3d(addr - TILES_START, val),
-            tilemaps_range!() => self.tilemaps.set_3d(addr - TILEMAPS_START, val),
-            oam_range!() => self.oam.set_2d(addr - OBJ_START, val),
+            tiles_range!() => {
+                if self.vram_access() {
+                    self.tiles.set_3d(addr - TILES_START, val)
+                }
+            }
+            tilemaps_range!() => {
+                if self.vram_access() {
+                    self.tilemaps.set_3d(addr - TILEMAPS_START, val)
+                }
+            }
+            oam_range!() => {
+                if self.oam_access() {
+                    self.oam.set_2d(addr - OBJ_START, val)
+                }
+            }
             0xFF40 => self.lcdc.0 = val,
             0xFF44 => (),
             0xFF47 => self.bg_palette.0 = val,
@@ -154,6 +212,15 @@ impl Gpu {
             0xFF4A => self.window_x = val,
             0xFF4B => self.window_y = val,
             _ => todo!(),
+        }
+    }
+
+    pub fn dma_transfer(gb: &mut Gameboy, addr_hi: u8) {
+        let src_base = (addr_hi as u16) << 8;
+        let nbytes = std::mem::size_of_val(&gb.gpu.oam);
+        for i in 0..nbytes {
+            let by = gb.read8(src_base + i as u16);
+            gb.gpu.oam.set_2d(i, by); // this ignores GpuMode r/w blocks
         }
     }
 
@@ -177,6 +244,7 @@ impl Gpu {
             if start_x >= SCREEN_W {
                 continue;
             }
+
             let tilemap_x = i.wrapping_add(scroll_x) as usize / TILEMAP_SIDE;
             let tile_id = self.tilemaps[tilemap][tilemap_x][tilemap_y];
             let tile_id = if self.lcdc.get(LcdControl::TILE_BLOCK_2) {
@@ -184,10 +252,12 @@ impl Gpu {
             } else {
                 tile_id as u16
             };
+
             let tile = self.tiles.get_2d(tile_id);
             let tile_byte = (self.current_y as usize % TILE_SIDE) * 2;
             let lo = tile[tile_byte];
             let hi = tile[tile_byte + 1];
+
             for j in 0..TILE_SIDE {
                 let color_id = color_id(lo, hi, TILE_SIDE - 1 - j);
                 let grayscale = self.bg_palette.grayscale(color_id);
@@ -242,6 +312,7 @@ impl Gpu {
                 } else {
                     tile_id
                 };
+
                 let flags = ObjectFlags(flags);
                 let y_range = y..(y + size as u8);
                 y_range.contains(&self.current_y).then_some(Object {
@@ -269,6 +340,7 @@ impl Gpu {
             if obj.flags.get(ObjectFlags::FLIP_Y) {
                 tile_y = size as u8 - 1 - tile_y;
             }
+
             let tile_byte = tile_y as usize * 2;
             let tile = self.tiles.get_2d(obj.tile_id);
             let lo = tile[tile_byte];
@@ -280,7 +352,8 @@ impl Gpu {
                 } else {
                     j
                 };
-                let current_x = (obj.x as usize).wrapping_add(j);
+
+                let current_x = obj.x as usize + j;
                 let color_id = color_id(lo, hi, bit);
                 if current_x >= SCREEN_W
                     || color_id == 0
@@ -288,6 +361,7 @@ impl Gpu {
                 {
                     continue;
                 }
+
                 let grayscale = self.obj_palettes[palette].grayscale(color_id);
                 self.set_pixel(current_x, grayscale);
             }
@@ -299,14 +373,46 @@ impl Gpu {
         self.draw_objs_line();
     }
 
-    pub fn draw(&mut self) {
+    pub fn draw(&mut self, cycles: u32) {
         if !self.lcdc.get(LcdControl::LCD_ENABLE) {
             return;
         }
 
-        for y in 0..SCREEN_H {
-            self.current_y = y as u8;
-            self.draw_line();
+        let frame_dots = (self.dots % GpuMode::FRAME_END) + cycles;
+        self.dots += cycles;
+
+        match self.mode {
+            GpuMode::OamScan => {
+                if frame_dots >= GpuMode::OAM_SCAN_END {
+                    self.mode = GpuMode::Draw
+                }
+            }
+            GpuMode::Draw => {
+                if frame_dots >= GpuMode::DRAW_END {
+                    self.draw_line();
+                    self.mode = GpuMode::HBlank;
+                }
+            }
+            GpuMode::HBlank => {
+                if frame_dots >= GpuMode::HBLANK_END {
+                    self.current_y += 1;
+                    self.mode = if self.current_y == SCREEN_H as u8 {
+                        GpuMode::VBlank
+                    } else {
+                        GpuMode::OamScan
+                    };
+                }
+            }
+            GpuMode::VBlank => {
+                if frame_dots >= GpuMode::FRAME_END {
+                    self.current_y += 1;
+                    if self.current_y == (SCREEN_H + GpuMode::VBLANK_LEN) as u8 {
+                        self.current_y = 0;
+                        self.dots = 0;
+                        self.mode = GpuMode::OamScan;
+                    }
+                }
+            }
         }
     }
 }

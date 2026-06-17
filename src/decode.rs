@@ -41,8 +41,6 @@ const CB_CYCLES: [u8; 256] = [
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // f
 ];
 
-pub const OPCODE_NOOP: u8 = 0x00;
-
 impl Cpu {
     pub fn decode_exec_instr(&mut self, opcode: u8) -> u8 {
         match opcode {
@@ -264,7 +262,7 @@ impl Cpu {
             0xFB => self.ei(),
             0x3F => self.ccf(),
             0x37 => self.scf(),
-            0x00 => self.noop(), // OPCODE_NOOP
+            0x00 => self.noop(),
             0x27 => self.daa(),
             0x2F => self.cpl(),
             // --- 16-bit operations
