@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::ops::DerefMut;
+use std::{path::Path, pin::Pin};
 
 use crate::cartridge::Cartridge;
 use crate::constants::*;
@@ -25,7 +26,7 @@ pub struct Gameboy {
 }
 
 impl Gameboy {
-    pub fn new(cartridge_path: impl AsRef<Path>) -> Box<Self> {
+    pub fn new(cartridge_path: impl AsRef<Path>) -> Pin<Box<Self>> {
         let cartridge = Cartridge::new(cartridge_path.as_ref());
 
         let mut window = minifb::Window::new(
@@ -37,7 +38,7 @@ impl Gameboy {
         .unwrap();
         window.set_target_fps(TARGET_FPS);
 
-        let mut gb = Box::new(Gameboy {
+        let mut gb = Box::into_pin(Box::new(Gameboy {
             cartridge,
             cpu: Cpu::new(),
             gpu: Gpu::new(),
@@ -47,9 +48,11 @@ impl Gameboy {
             timer: Timer::new(),
             window,
             window_buf: vec![0; SCREEN_W * SCREEN_H],
-        });
-        let ptr = gb.as_mut() as *mut Gameboy;
-        gb.cpu.set_gb(ptr);
+        }));
+        gb.cpu.gb = gb.deref_mut() as *mut Gameboy;
+        gb.gpu.gb = gb.deref_mut() as *mut Gameboy;
+        gb.timer.gb = gb.deref_mut() as *mut Gameboy;
+        gb.joypad.gb = gb.deref_mut() as *mut Gameboy;
 
         gb
     }
@@ -79,6 +82,7 @@ impl Gameboy {
         for (key, joypad_key) in joypad_keys {
             if self.window.is_key_down(key) {
                 self.joypad.press(joypad_key);
+                self.inter_flag.raise(Interrupt::JOYPAD);
             } else {
                 self.joypad.release(joypad_key);
             }

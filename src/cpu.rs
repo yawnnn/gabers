@@ -9,7 +9,7 @@ pub struct Cpu {
     pub low_power_mode: bool,
     pub halt_bug: bool,
     pub pending_enable_ime: bool,
-    gb: *mut Gameboy,
+    pub gb: *mut Gameboy,
 }
 
 impl Cpu {
@@ -28,10 +28,6 @@ impl Cpu {
         // SAFETY: this is used to access data inside gb that's not already "in scope" (eg. cpu.gb().timer), so aliasing *shouldn't* be an issue
         // TODO: this is still pretty unsafe and should be removed
         unsafe { self.gb.as_mut().unwrap() }
-    }
-
-    pub fn set_gb(&mut self, gb: *mut Gameboy) {
-        self.gb = gb;
     }
 
     pub fn fetch8(&mut self) -> u8 {
@@ -75,23 +71,23 @@ impl Cpu {
 
     fn handle_interrupts(&mut self) -> Option<u8> {
         let bits = *self.gb().inter_enable & *self.gb().inter_flag & Interrupt::BITMASK;
-        let inter = (1 << bits.trailing_zeros()) as u8; // in case of multiple interrupts, the lowest bit has priority
+        let inter = (1 << bits.trailing_zeros()) as u8; // lowest bit has priority
         if !self.ime || inter == 0 {
             return None;
         }
         self.ime = false;
         *self.gb().inter_flag &= !inter;
         let addr = match inter {
-            0x01 => 0x40,
-            0x02 => 0x48,
-            0x04 => 0x50,
-            0x08 => 0x58,
-            0x10 => 0x60,
+            0x01 => 0x40, // V-Blank
+            0x02 => 0x48, // LCD
+            0x04 => 0x50, // Timer
+            0x08 => 0x58, // Serial
+            0x10 => 0x60, // Joypad
             _ => unreachable!(),
         };
         self.call(addr);
 
-        Some(5)
+        Some(5) // 2 cycles of NOP + 3 cycles for call
     }
 
     pub fn step(&mut self) -> u8 {
