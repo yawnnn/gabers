@@ -1,6 +1,5 @@
 use crate::common::*;
-use crate::constants::*;
-use crate::gameboy::Gameboy;
+use crate::gameboy::*;
 use crate::interrupt::Interrupt;
 use crate::mmu::{oam_range, tilemaps_range, tiles_range};
 

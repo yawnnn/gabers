@@ -3,7 +3,6 @@ use std::{path::Path, pin::Pin};
 
 use crate::cartridge::Cartridge;
 use crate::common::*;
-use crate::constants::*;
 use crate::cpu::Cpu;
 use crate::gpu::Gpu;
 use crate::interrupt::Interrupt;
@@ -11,6 +10,10 @@ use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
 use crate::timer::Timer;
 
+pub const MASTER_CLOCK: usize = 4_194_304;
+pub const MASTER_SYSTEM_CLOCK_RATIO: usize = 4;
+pub const SCREEN_W: usize = 160;
+pub const SCREEN_H: usize = 144;
 const TARGET_FPS: usize = 60;
 const FRAME_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
 

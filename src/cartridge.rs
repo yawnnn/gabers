@@ -6,7 +6,6 @@ use std::ops::Range;
 use std::{fs, path::Path};
 
 use crate::common::*;
-use crate::constants::*;
 
 const HEADER: Range<usize> = 0x0100..0x014F + 1;
 const ENTRY_POINT: usize = 0x0100;
@@ -147,7 +146,7 @@ impl Cartridge {
     pub fn read(&self, addr: u16) -> u8 {
         todo!()
     }
-    
+
     pub fn write(&mut self, addr: u16, val: u8) {
         todo!()
     }

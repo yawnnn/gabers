@@ -1,5 +1,4 @@
-use crate::constants::*;
-use crate::{gameboy::Gameboy, interrupt::Interrupt};
+use crate::{gameboy::*, interrupt::Interrupt};
 
 pub struct Timer {
     raw_counter: u16, // DIV: Divide register

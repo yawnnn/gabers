@@ -2,7 +2,6 @@
 
 mod cartridge;
 mod common;
-mod constants;
 mod cpu;
 mod decode;
 mod gameboy;

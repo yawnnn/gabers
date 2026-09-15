@@ -113,7 +113,7 @@ pub trait Array2D<const W: usize, const H: usize> {
 
     fn get_2d(&self, idx: impl Into<usize>) -> &Self::Item;
     fn get_2d_mut(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
-    
+
     fn coords_1to2(idx: usize) -> (usize, usize) {
         if idx >= W * H {
             panic!("Index {idx} out of bounds for array {W}x{H}");
@@ -153,7 +153,7 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
 
     fn get_3d(&self, idx: impl Into<usize>) -> &Self::Item;
     fn get_3d_mut(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
-    
+
     fn coords_1to3(idx: usize) -> (usize, usize, usize) {
         if idx >= W * H * D {
             panic!("Index {idx} out of bounds for array {W}x{H}x{D}");
@@ -179,9 +179,7 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     }
 }
 
-impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D>
-    for [[[T; D]; H]; W]
-{
+impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D> for [[[T; D]; H]; W] {
     type Item = T;
 
     fn get_3d(&self, idx: impl Into<usize>) -> &T {
