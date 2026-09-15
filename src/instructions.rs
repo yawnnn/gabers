@@ -3,8 +3,6 @@ use crate::constants::*;
 use crate::cpu::*;
 use crate::registers::*;
 
-// TODO: in JSON a8 means Addr::HiImm8 or Addr::Imm16
-// TODO: which specials (HiImm8, HLI, ..) should i encode in the enums, and which should be special functions
 impl Cpu {
     /*
      * LOAD INSTRUCTIONS
@@ -92,24 +90,26 @@ impl Cpu {
     // LDH A, [C]
     // Z N H C
     // - - - -
-    pub fn ldh8_addr_a(&mut self, addr: Addr) {
-        let addr = self.read_addr(addr);
-        if LDH_RANGE.contains(&(addr as usize)) {
-            let value = self.gb().read8(addr);
-            self.write8(Reg8::A, value);
-        }
+    pub fn ldh8_addr_a<I: Copy>(&mut self, src: I)
+    where
+        Self: In8<I>,
+    {
+        let addr = 0xFF00 | (self.read8(src) as u16);
+        let value = self.gb().read8(addr);
+        self.write8(Reg8::A, value);
     }
 
     // LDH [n16], A
     // LDH [C], A
     // Z N H C
     // - - - -
-    pub fn ldh8_a_addr(&mut self, addr: Addr) {
-        let addr = self.read_addr(addr);
-        if LDH_RANGE.contains(&(addr as usize)) {
-            let value = self.read8(Reg8::A);
-            self.gb().write8(addr, value);
-        }
+    pub fn ldh8_a_addr<I: Copy>(&mut self, src: I)
+    where
+        Self: In8<I> + In8<Reg8>,
+    {
+        let addr = 0xFF00 | (self.read8(src) as u16);
+        let value = self.read8(Reg8::A);
+        self.gb().write8(addr, value);
     }
 
     /*

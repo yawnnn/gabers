@@ -3,6 +3,30 @@ use crate::gameboy::Gameboy;
 use crate::interrupt::Interrupt;
 use crate::registers::*;
 
+pub enum Condition {
+    CF,
+    NoCF,
+    ZF,
+    NoZF,
+}
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Clone, Copy)]
+pub enum Addr {
+    BC,
+    DE,
+    HL,
+    HLI,
+    HLD,
+    Imm16,
+}
+
+#[derive(Clone, Copy)]
+pub struct Imm8;
+
+#[derive(Clone, Copy)]
+pub struct Imm16;
+
 pub struct Cpu {
     pub regs: Registers,
     pub ime: bool,
@@ -62,10 +86,6 @@ impl Cpu {
                 addr
             }
             Addr::Imm16 => self.fetch16(),
-            Addr::HighC => {
-                let value = self.read8(Reg8::C);
-                0xFF00 | value as u16
-            }
         }
     }
 
@@ -258,31 +278,6 @@ impl Cpu {
         self.jump_abs(addr);
     }
 }
-
-pub enum Condition {
-    CF,
-    NoCF,
-    ZF,
-    NoZF,
-}
-
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Copy)]
-pub enum Addr {
-    BC,
-    DE,
-    HL,
-    HLI,
-    HLD,
-    Imm16,
-    HighC,
-}
-
-#[derive(Clone, Copy)]
-pub struct Imm8;
-
-#[derive(Clone, Copy)]
-pub struct Imm16;
 
 pub trait In8<T: Copy> {
     fn read8(&mut self, src: T) -> u8;

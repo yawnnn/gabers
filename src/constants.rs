@@ -105,5 +105,3 @@ impl HWRegs {
     // pub const PCM34: usize = 0xFF77; // Audio digital outputs 3 & 4 - R
     pub const IE: usize = 0xFFFF; // Interrupt enable - R/W
 }
-
-pub const LDH_RANGE: Range<usize> = 0xFF00..0xFFFF + 1;
