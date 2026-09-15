@@ -33,7 +33,7 @@ impl Cpu {
     pub fn fetch8(&mut self) -> u8 {
         let pc = self.regs.pc;
         let byte = self.gb().read8(pc);
-        self.regs.pc = pc.checked_add(1).unwrap(); // TODO: checked or wrapping?
+        self.regs.pc = pc.wrapping_add(1);
 
         byte
     }
@@ -41,7 +41,7 @@ impl Cpu {
     pub fn fetch16(&mut self) -> u16 {
         let pc = self.regs.pc;
         let word = self.gb().read16(pc);
-        self.regs.pc = pc.checked_add(2).unwrap(); // TODO: checked or wrapping?
+        self.regs.pc = pc.wrapping_add(2);
 
         word
     }
@@ -53,12 +53,12 @@ impl Cpu {
             Addr::HL => self.read16(Reg16::HL),
             Addr::HLI => {
                 let addr = self.read16(Reg16::HL);
-                self.write16(Reg16::HL, addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
+                self.write16(Reg16::HL, addr.wrapping_add(1));
                 addr
             }
             Addr::HLD => {
                 let addr = self.read16(Reg16::HL);
-                self.write16(Reg16::HL, addr.checked_sub(1).unwrap()); // TODO: checked or wrapping?
+                self.write16(Reg16::HL, addr.wrapping_sub(1));
                 addr
             }
             Addr::Imm16 => self.fetch16(),
@@ -95,7 +95,7 @@ impl Cpu {
             return cycles;
         }
         if self.low_power_mode {
-            return 1;   // NOOP
+            return 1; // NOOP
         }
 
         let opcode = self.fetch8();
@@ -225,13 +225,13 @@ impl Cpu {
     pub fn stack_push(&mut self, value: u16) {
         let sp = self.regs.sp;
         self.gb().write16(sp, value);
-        self.regs.sp = sp.checked_add(2).unwrap(); // TODO: checked or wrapping?
+        self.regs.sp = sp.wrapping_add(2);
     }
 
     pub fn stack_pop(&mut self) -> u16 {
         let sp = self.regs.sp;
         let res = self.gb().read16(sp);
-        self.regs.sp = sp.checked_sub(2).unwrap(); // TODO: checked or wrapping?
+        self.regs.sp = sp.wrapping_sub(2);
 
         res
     }
@@ -246,7 +246,7 @@ impl Cpu {
     }
 
     pub fn jump_rel(&mut self, offset: i8) {
-        self.regs.pc = self.regs.pc.checked_add_signed(offset as i16).unwrap(); // TODO: checked or wrapping?
+        self.regs.pc = self.regs.pc.wrapping_add_signed(offset as i16);
     }
 
     pub fn jump_abs(&mut self, addr: u16) {

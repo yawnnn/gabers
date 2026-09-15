@@ -3,7 +3,6 @@ use crate::constants::*;
 use crate::cpu::*;
 use crate::registers::*;
 
-// TODO: checked or wrapping?
 // TODO: in JSON a8 means Addr::HiImm8 or Addr::Imm16
 // TODO: which specials (HiImm8, HLI, ..) should i encode in the enums, and which should be special functions
 impl Cpu {

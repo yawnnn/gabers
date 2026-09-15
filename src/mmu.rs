@@ -203,7 +203,7 @@ impl Gameboy {
 
     pub fn read16(&self, addr: u16) -> u16 {
         let lo = self.read8(addr);
-        let hi = self.read8(addr.checked_add(1).unwrap()); // TODO: checked or wrapping?
+        let hi = self.read8(addr.wrapping_add(1));
 
         u16::from_le_bytes([lo, hi])
     }
@@ -211,6 +211,6 @@ impl Gameboy {
     pub fn write16(&mut self, addr: u16, value: u16) {
         let [lo, hi] = u16::to_le_bytes(value);
         self.write8(addr, lo);
-        self.write8(addr.checked_add(1).unwrap(), hi); // TODO: checked or wrapping?
+        self.write8(addr.wrapping_add(1), hi);
     }
 }
