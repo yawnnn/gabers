@@ -2,11 +2,13 @@ use std::ops::DerefMut;
 use std::{path::Path, pin::Pin};
 
 use crate::cartridge::Cartridge;
+use crate::common::*;
 use crate::constants::*;
 use crate::cpu::Cpu;
 use crate::gpu::Gpu;
 use crate::interrupt::Interrupt;
 use crate::joypad::{Joypad, JoypadKey};
+use crate::mmu::*;
 use crate::timer::Timer;
 
 const TARGET_FPS: usize = 60;
@@ -20,6 +22,8 @@ pub struct Gameboy {
     pub inter_flag: Interrupt,
     pub joypad: Joypad,
     pub timer: Timer,
+    pub wram: [u8; wram_range!().span()],
+    pub hram: [u8; hram_range!().span()],
 
     window: minifb::Window,
     window_buf: Vec<u32>,
@@ -46,6 +50,8 @@ impl Gameboy {
             inter_flag: Interrupt::new(),
             joypad: Joypad::new(),
             timer: Timer::new(),
+            wram: [0; wram_range!().span()],
+            hram: [0; hram_range!().span()],
             window,
             window_buf: vec![0; SCREEN_W * SCREEN_H],
         }));

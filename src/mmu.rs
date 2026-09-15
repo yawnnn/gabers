@@ -26,18 +26,13 @@ macro_rules! eram_range {
         0xA000..=0xBFFF
     };
 }
-/// 4 KiB Work RAM (WRAM)
+/// 4 * 2 KiB Work RAM (WRAM)
 macro_rules! wram_range {
     () => {
-        0xC000..=0xCFFF
+        0xC000..=0xDFFF
     };
 }
-/// 4 KiB Work RAM (WRAM) - In CGB mode, switchable bank 1–7
-macro_rules! wram_cgb_range {
-    () => {
-        0xD000..=0xDFFF
-    };
-}
+pub(crate) use wram_range;
 /// Echo RAM (mirror of C000–DDFF) - Nintendo says use of this area is prohibited.
 macro_rules! echo_ram_range {
     () => {
@@ -69,64 +64,83 @@ macro_rules! hram_range {
         0xFF80..=0xFFFE
     };
 }
+pub(crate) use hram_range;
 /// Interrupt Enable register (IE)
-macro_rules! ie_reg {
+macro_rules! ie_addr {
     () => {
         0xFFFF
     };
 }
 /// Joypad input
 macro_rules! joypad_addr {
-    () => { 
+    () => {
         0xFF00
     };
 }
 /// Serial transfer
 macro_rules! serial_range {
-    () => { 
+    () => {
         0xFF01..=0xFF02
     };
 }
 /// Timer and divider
 macro_rules! timer_range {
-    () => { 
+    () => {
         0xFF04..=0xFF07
     };
 }
 /// Interrupts
-macro_rules! inter_flag_addr {
-    () => { 
+macro_rules! if_addr {
+    () => {
         0xFF0F
     };
 }
 /// Audio
 macro_rules! audio_range {
-    () => { 
+    () => {
         0xFF10..=0xFF3F
     };
 }
 /// LCD Control, Status, Position and Scorlling
 macro_rules! lcd_range {
-    () => { 
+    () => {
         0xFF40..=0xFF45
     };
 }
 /// OAM DMA transfer
 macro_rules! dma_addr {
-    () => { 
+    () => {
         0xFF46
     };
 }
 /// Palettes
 macro_rules! palette_range {
-    () => { 
+    () => {
         0xFF47..=0xFF49
     };
 }
 /// Window position
 macro_rules! window_range {
-    () => { 
+    () => {
         0xFF4A..=0xFF4B
+    };
+}
+// KEY0 and KEY1, VRAM Bank Select
+macro_rules! cgb0_range {
+    () => {
+        0xFF4C..=0xFF4F
+    };
+}
+// Boot ROM mapping control
+macro_rules! bootrom_mapping_addr {
+    () => {
+        0xFF50
+    };
+}
+// VRAM DMA, IR port, BG/OBJ Palettes, Object  priority mode, WRAM Bank Select
+macro_rules! cgb1_range {
+    () => {
+        0xFF51..=0xFF70
     };
 }
 
@@ -137,25 +151,25 @@ impl Gameboy {
             tiles_range!() => self.gpu.read8(addr),
             tilemaps_range!() => self.gpu.read8(addr),
             eram_range!() => self.cartridge.read(addr),
-            wram_range!() => todo!(),
-            wram_cgb_range!() => todo!(),
+            wram_range!() => self.wram[addr as usize - wram_range!().start()],
             echo_ram_range!() => self.read8(addr - 0x2000),
             oam_range!() => self.gpu.read8(addr),
             unusable_range!() => 0xFF,
-            io_regs_range!() => match addr {
-                joypad_addr!() => self.joypad.read8(),
-                serial_range!() => todo!(),
-                timer_range!() => self.timer.read8(addr),
-                inter_flag_addr!() => *self.inter_flag,
-                audio_range!() => todo!(),
-                lcd_range!() => self.gpu.read8(addr),
-                dma_addr!() => todo!(),
-                palette_range!() => self.gpu.read8(addr),
-                window_range!() => self.gpu.read8(addr),
-                _ => todo!(),
-            },
-            hram_range!() => todo!(),
-            ie_reg!() => *self.inter_enable,
+            joypad_addr!() => self.joypad.read8(),
+            serial_range!() => todo!(),
+            timer_range!() => self.timer.read8(addr),
+            if_addr!() => *self.inter_flag,
+            audio_range!() => todo!(),
+            lcd_range!() => self.gpu.read8(addr),
+            dma_addr!() => todo!(),
+            palette_range!() => self.gpu.read8(addr),
+            window_range!() => self.gpu.read8(addr),
+            cgb0_range!() => 0, // CGB only
+            bootrom_mapping_addr!() => todo!(),
+            cgb1_range!() => 0, // CGB only
+            hram_range!() => self.hram[addr as usize - hram_range!().start()],
+            ie_addr!() => *self.inter_enable,
+            _ => 0,
         }
     }
 
@@ -165,25 +179,25 @@ impl Gameboy {
             tiles_range!() => self.gpu.write8(addr, val),
             tilemaps_range!() => self.gpu.write8(addr, val),
             eram_range!() => self.cartridge.write(addr, val),
-            wram_range!() => todo!(),
-            wram_cgb_range!() => todo!(),
+            wram_range!() => self.wram[addr as usize - wram_range!().start()] = val,
             echo_ram_range!() => self.write8(addr - 0x2000, val),
             oam_range!() => self.gpu.write8(addr, val),
             unusable_range!() => (),
-            io_regs_range!() => match addr {
-                joypad_addr!() => self.joypad.write8(val),
-                serial_range!() => todo!(),
-                timer_range!() => self.timer.write8(addr, val),
-                inter_flag_addr!() => *self.inter_flag = val,
-                audio_range!() => todo!(),
-                lcd_range!() => self.gpu.write8(addr, val),
-                dma_addr!() => Gpu::dma_transfer(self, val),
-                palette_range!() => self.gpu.write8(addr, val),
-                window_range!() => self.gpu.write8(addr, val),
-                _ => todo!(),
-            },
-            hram_range!() => todo!(),
-            ie_reg!() => *self.inter_enable = val,
+            joypad_addr!() => self.joypad.write8(val),
+            serial_range!() => todo!(),
+            timer_range!() => self.timer.write8(addr, val),
+            if_addr!() => *self.inter_flag = val,
+            audio_range!() => todo!(),
+            lcd_range!() => self.gpu.write8(addr, val),
+            dma_addr!() => Gpu::dma_transfer(self, val),
+            palette_range!() => self.gpu.write8(addr, val),
+            window_range!() => self.gpu.write8(addr, val),
+            cgb0_range!() => (), // CGB only
+            bootrom_mapping_addr!() => todo!(),
+            cgb1_range!() => (), // CGB only
+            hram_range!() => self.hram[addr as usize - hram_range!().start()] = val,
+            ie_addr!() => *self.inter_enable = val,
+            _ => (),
         }
     }
 
