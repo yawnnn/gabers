@@ -1,13 +1,14 @@
+use minifb::{Key, Window, WindowOptions};
 use std::ops::DerefMut;
 use std::{path::Path, pin::Pin};
 
 use crate::cartridge::Cartridge;
 use crate::common::*;
 use crate::cpu::Cpu;
-use crate::gpu::Gpu;
 use crate::interrupt::Interrupt;
 use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
+use crate::ppu::Ppu;
 use crate::timer::Timer;
 
 pub const MASTER_CLOCK: usize = 4_194_304;
@@ -20,27 +21,27 @@ const FRAME_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u3
 pub struct Gameboy {
     pub cartridge: Cartridge,
     pub cpu: Cpu,
-    pub gpu: Gpu,
-    pub inter_enable: Interrupt,
-    pub inter_flag: Interrupt,
+    pub ppu: Ppu,
+    pub int_enable: u8,
+    pub int_flag: Interrupt,
     pub joypad: Joypad,
     pub timer: Timer,
     pub wram: [u8; wram_range!().span()],
     pub hram: [u8; hram_range!().span()],
 
-    window: minifb::Window,
-    window_buf: Vec<u32>,
+    window: Window,
+    screen: Vec<u32>,
 }
 
 impl Gameboy {
     pub fn new(cartridge_path: impl AsRef<Path>) -> Pin<Box<Self>> {
         let cartridge = Cartridge::new(cartridge_path.as_ref());
 
-        let mut window = minifb::Window::new(
+        let mut window = Window::new(
             &cartridge.title,
             SCREEN_W,
             SCREEN_H,
-            minifb::WindowOptions::default(),
+            WindowOptions::default(),
         )
         .unwrap();
         window.set_target_fps(TARGET_FPS);
@@ -48,56 +49,56 @@ impl Gameboy {
         let mut gb = Box::into_pin(Box::new(Gameboy {
             cartridge,
             cpu: Cpu::new(),
-            gpu: Gpu::new(),
-            inter_enable: Interrupt::new(),
-            inter_flag: Interrupt::new(),
+            ppu: Ppu::new(),
+            int_enable: 0,
+            int_flag: Interrupt::new(),
             joypad: Joypad::new(),
             timer: Timer::new(),
             wram: [0; wram_range!().span()],
             hram: [0; hram_range!().span()],
             window,
-            window_buf: vec![0; SCREEN_W * SCREEN_H],
+            screen: vec![0; SCREEN_W * SCREEN_H],
         }));
         gb.cpu.gb = gb.deref_mut() as *mut Gameboy;
-        gb.gpu.gb = gb.deref_mut() as *mut Gameboy;
+        gb.ppu.gb = gb.deref_mut() as *mut Gameboy;
         gb.timer.gb = gb.deref_mut() as *mut Gameboy;
         gb.joypad.gb = gb.deref_mut() as *mut Gameboy;
 
         gb
     }
 
-    fn update_window(&mut self) {
-        for (i, rgb) in self.gpu.buf.iter().enumerate() {
+    fn draw(&mut self) {
+        for (i, rgb) in self.ppu.buf.iter().enumerate() {
             let [r, g, b] = *rgb;
-            self.window_buf[i] = u32::from_le_bytes([r, g, b, 0xFF]);
+            self.screen[i] = u32::from_le_bytes([r, g, b, 0xFF]);
         }
         self.window
-            .update_with_buffer(&self.window_buf, SCREEN_W, SCREEN_H)
+            .update_with_buffer(&self.screen, SCREEN_W, SCREEN_H)
             .unwrap();
     }
 
     fn handle_input(&mut self) -> bool {
         let joypad_keys = [
-            (minifb::Key::Right, JoypadKey::Right),
-            (minifb::Key::Up, JoypadKey::Up),
-            (minifb::Key::Left, JoypadKey::Left),
-            (minifb::Key::Down, JoypadKey::Down),
-            (minifb::Key::Z, JoypadKey::A),
-            (minifb::Key::X, JoypadKey::B),
-            (minifb::Key::Space, JoypadKey::Select),
-            (minifb::Key::Enter, JoypadKey::Start),
+            (Key::Right, JoypadKey::Right),
+            (Key::Up, JoypadKey::Up),
+            (Key::Left, JoypadKey::Left),
+            (Key::Down, JoypadKey::Down),
+            (Key::Z, JoypadKey::A),
+            (Key::X, JoypadKey::B),
+            (Key::Space, JoypadKey::Select),
+            (Key::Enter, JoypadKey::Start),
         ];
 
         for (key, joypad_key) in joypad_keys {
             if self.window.is_key_down(key) {
                 self.joypad.press(joypad_key);
-                self.inter_flag.raise(Interrupt::JOYPAD);
+                self.int_flag.raise(Interrupt::JOYPAD);
             } else {
                 self.joypad.release(joypad_key);
             }
         }
 
-        if self.window.is_key_down(minifb::Key::Escape) {
+        if self.window.is_key_down(Key::Escape) {
             return false;
         }
 
@@ -108,7 +109,7 @@ impl Gameboy {
         let system_cycles = self.cpu.step();
         let master_cycles = system_cycles as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
         self.timer.tick(master_cycles);
-        self.gpu.draw(master_cycles);
+        self.ppu.render(master_cycles);
 
         master_cycles
     }
@@ -119,7 +120,7 @@ impl Gameboy {
             while cycles < FRAME_CYCLES {
                 cycles += self.step();
             }
-            self.update_window();
+            self.draw();
         }
     }
 }

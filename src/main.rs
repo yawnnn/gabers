@@ -5,11 +5,11 @@ mod common;
 mod cpu;
 mod decode;
 mod gameboy;
-mod gpu;
 mod instructions;
 mod interrupt;
 mod joypad;
 mod mmu;
+mod ppu;
 mod registers;
 mod timer;
 

@@ -1,4 +1,4 @@
-use crate::{gameboy::Gameboy, gpu::Gpu};
+use crate::{gameboy::Gameboy, ppu::Ppu};
 
 /// 16 KiB ROM bank 00 (From cartridge, usually a fixed bank) + 16 KiB ROM Bank 01–NN (From cartridge, switchable bank via mapper (if any))
 macro_rules! rom_range {
@@ -46,18 +46,6 @@ macro_rules! oam_range {
     };
 }
 pub(crate) use oam_range;
-/// Not Usable - Nintendo says use of this area is prohibited.
-macro_rules! unusable_range {
-    () => {
-        0xFEA0..=0xFEFF
-    };
-}
-/// I/O Registers
-macro_rules! io_regs_range {
-    () => {
-        0xFF00..=0xFF7F
-    };
-}
 /// High RAM (HRAM)
 macro_rules! hram_range {
     () => {
@@ -125,22 +113,10 @@ macro_rules! window_range {
         0xFF4A..=0xFF4B
     };
 }
-// KEY0 and KEY1, VRAM Bank Select
-macro_rules! cgb0_range {
-    () => {
-        0xFF4C..=0xFF4F
-    };
-}
 // Boot ROM mapping control
-macro_rules! bootrom_mapping_addr {
+macro_rules! unmap_bootrom_addr {
     () => {
         0xFF50
-    };
-}
-// VRAM DMA, IR port, BG/OBJ Palettes, Object  priority mode, WRAM Bank Select
-macro_rules! cgb1_range {
-    () => {
-        0xFF51..=0xFF70
     };
 }
 
@@ -148,55 +124,49 @@ impl Gameboy {
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             rom_range!() => self.cartridge.read(addr),
-            tiles_range!() => self.gpu.read8(addr),
-            tilemaps_range!() => self.gpu.read8(addr),
+            tiles_range!() => self.ppu.read8(addr),
+            tilemaps_range!() => self.ppu.read8(addr),
             eram_range!() => self.cartridge.read(addr),
             wram_range!() => self.wram[addr as usize - wram_range!().start()],
             echo_ram_range!() => self.read8(addr - 0x2000),
-            oam_range!() => self.gpu.read8(addr),
-            unusable_range!() => 0xFF,
+            oam_range!() => self.ppu.read8(addr),
             joypad_addr!() => self.joypad.read8(),
             serial_range!() => todo!(),
             timer_range!() => self.timer.read8(addr),
-            if_addr!() => *self.inter_flag,
+            if_addr!() => *self.int_flag,
             audio_range!() => todo!(),
-            lcd_range!() => self.gpu.read8(addr),
+            lcd_range!() => self.ppu.read8(addr),
             dma_addr!() => todo!(),
-            palette_range!() => self.gpu.read8(addr),
-            window_range!() => self.gpu.read8(addr),
-            cgb0_range!() => 0, // CGB only
-            bootrom_mapping_addr!() => todo!(),
-            cgb1_range!() => 0, // CGB only
+            palette_range!() => self.ppu.read8(addr),
+            window_range!() => self.ppu.read8(addr),
+            unmap_bootrom_addr!() => todo!(),
             hram_range!() => self.hram[addr as usize - hram_range!().start()],
-            ie_addr!() => *self.inter_enable,
-            _ => 0,
+            ie_addr!() => self.int_enable,
+            _ => 0xFF,
         }
     }
 
     pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
             rom_range!() => self.cartridge.write(addr, val),
-            tiles_range!() => self.gpu.write8(addr, val),
-            tilemaps_range!() => self.gpu.write8(addr, val),
+            tiles_range!() => self.ppu.write8(addr, val),
+            tilemaps_range!() => self.ppu.write8(addr, val),
             eram_range!() => self.cartridge.write(addr, val),
             wram_range!() => self.wram[addr as usize - wram_range!().start()] = val,
             echo_ram_range!() => self.write8(addr - 0x2000, val),
-            oam_range!() => self.gpu.write8(addr, val),
-            unusable_range!() => (),
+            oam_range!() => self.ppu.write8(addr, val),
             joypad_addr!() => self.joypad.write8(val),
             serial_range!() => todo!(),
             timer_range!() => self.timer.write8(addr, val),
-            if_addr!() => *self.inter_flag = val,
+            if_addr!() => *self.int_flag = val,
             audio_range!() => todo!(),
-            lcd_range!() => self.gpu.write8(addr, val),
-            dma_addr!() => Gpu::dma_transfer(self, val),
-            palette_range!() => self.gpu.write8(addr, val),
-            window_range!() => self.gpu.write8(addr, val),
-            cgb0_range!() => (), // CGB only
-            bootrom_mapping_addr!() => todo!(),
-            cgb1_range!() => (), // CGB only
+            lcd_range!() => self.ppu.write8(addr, val),
+            dma_addr!() => Ppu::dma_transfer(self, val),
+            palette_range!() => self.ppu.write8(addr, val),
+            window_range!() => self.ppu.write8(addr, val),
+            unmap_bootrom_addr!() => todo!(),
             hram_range!() => self.hram[addr as usize - hram_range!().start()] = val,
-            ie_addr!() => *self.inter_enable = val,
+            ie_addr!() => self.int_enable = val,
             _ => (),
         }
     }
@@ -204,12 +174,11 @@ impl Gameboy {
     pub fn read16(&self, addr: u16) -> u16 {
         let lo = self.read8(addr);
         let hi = self.read8(addr.wrapping_add(1));
-
         u16::from_le_bytes([lo, hi])
     }
 
-    pub fn write16(&mut self, addr: u16, value: u16) {
-        let [lo, hi] = u16::to_le_bytes(value);
+    pub fn write16(&mut self, addr: u16, val: u16) {
+        let [lo, hi] = u16::to_le_bytes(val);
         self.write8(addr, lo);
         self.write8(addr.wrapping_add(1), hi);
     }

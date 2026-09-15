@@ -42,7 +42,7 @@ const CB_CYCLES: [u8; 256] = [
 ];
 
 impl Cpu {
-    pub fn decode_exec_instr(&mut self, opcode: u8) -> u8 {
+    pub fn decode_exec(&mut self, opcode: u8) -> u8 {
         match opcode {
             // --- 8-bit operations
             // 8-bit loads
@@ -298,7 +298,7 @@ impl Cpu {
             0x3B => self.dec16(SP),
             0xCB => {
                 let opcode_cb = self.fetch8();
-                return self.decode_exec_instr_cb(opcode_cb);
+                return self.decode_exec_cb(opcode_cb);
             }
             0xD3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
                 panic!("Unexpected instruction");
@@ -307,7 +307,7 @@ impl Cpu {
         OP_CYCLES[opcode as usize]
     }
 
-    fn decode_exec_instr_cb(&mut self, opcode_cb: u8) -> u8 {
+    fn decode_exec_cb(&mut self, opcode_cb: u8) -> u8 {
         match opcode_cb {
             // --- 8-bit operations
             // 8-bit arithmetic

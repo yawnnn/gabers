@@ -9,7 +9,7 @@ impl Interrupt {
     pub const TIMER:   u8 = 1 << 2;
     pub const SERIAL:  u8 = 1 << 3;
     pub const JOYPAD:  u8 = 1 << 4;
-    pub const BITMASK: u8 = Self::VBLANK | Self::LCD | Self::TIMER | Self::SERIAL | Self::JOYPAD; // 0x1F or 0b0001_1111
+    pub const BITMASK: u8 = Self::VBLANK | Self::LCD | Self::TIMER | Self::SERIAL | Self::JOYPAD;
 
     pub fn new() -> Self {
         Interrupt(0)

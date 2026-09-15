@@ -25,30 +25,30 @@ where
     Self: std::marker::Sized,
 {
     /// return a `Self` such that all bits up to the `bit`th are 1 and the rest are 0
-    fn bitmask(bit: usize) -> Self;
+    fn bitmask(bit: u8) -> Self;
 
     /// add `nums` with wrapping but check if `bit` has carry
     /// akin to overflowing_add but over N elements and bit-specific
-    fn bit_overflowing_add(nums: &[Self], bit: usize) -> (Self, bool);
+    fn bit_overflowing_add(nums: &[Self], bit: u8) -> (Self, bool);
 
     /// sub `nums` with wrapping but check if `bit` has borrow
     /// akin to overflowing_sub but over N elements and bit-specific
-    fn bit_overflowing_sub(nums: &[Self], bit: usize) -> (Self, bool);
+    fn bit_overflowing_sub(nums: &[Self], bit: u8) -> (Self, bool);
 }
 
 impl<T: PrimInt + OverflowingAdd + WrappingSub> NumTraitsExt for T {
-    fn bitmask(bit: usize) -> Self {
-        let max_bits = 8 * std::mem::size_of::<Self>();
+    fn bitmask(bit: u8) -> Self {
+        let max_bits = (8 * std::mem::size_of::<Self>()) as u8;
         assert!(bit < max_bits);
 
         if bit == max_bits - 1 {
             Self::max_value()
         } else {
-            (Self::one() << (bit + 1)) - Self::one()
+            (Self::one() << (bit + 1) as usize) - Self::one()
         }
     }
 
-    fn bit_overflowing_add(nums: &[Self], bit: usize) -> (Self, bool) {
+    fn bit_overflowing_add(nums: &[Self], bit: u8) -> (Self, bool) {
         assert!(!nums.is_empty());
 
         let mask = Self::bitmask(bit);
@@ -69,7 +69,7 @@ impl<T: PrimInt + OverflowingAdd + WrappingSub> NumTraitsExt for T {
         (acc, carry)
     }
 
-    fn bit_overflowing_sub(nums: &[Self], bit: usize) -> (Self, bool) {
+    fn bit_overflowing_sub(nums: &[Self], bit: u8) -> (Self, bool) {
         assert!(!nums.is_empty());
 
         let mask = Self::bitmask(bit - 1);
@@ -112,9 +112,9 @@ pub trait Array2D<const W: usize, const H: usize> {
     type Item;
 
     fn get_2d(&self, idx: impl Into<usize>) -> &Self::Item;
-    fn get_2d_mut(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
+    fn get_mut_2d(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
 
-    fn coords_1to2(idx: usize) -> (usize, usize) {
+    fn idx_1to2(idx: usize) -> (usize, usize) {
         if idx >= W * H {
             panic!("Index {idx} out of bounds for array {W}x{H}");
         }
@@ -122,7 +122,7 @@ pub trait Array2D<const W: usize, const H: usize> {
     }
 
     #[allow(unused)]
-    fn coords_2to1((x, y): (usize, usize)) -> usize {
+    fn idx_2to1((x, y): (usize, usize)) -> usize {
         if x >= W || y >= H {
             panic!("Index {x}x{y} out of bounds for array {W}x{H}");
         }
@@ -130,7 +130,7 @@ pub trait Array2D<const W: usize, const H: usize> {
     }
 
     fn set_2d(&mut self, idx: impl Into<usize>, val: Self::Item) {
-        *self.get_2d_mut(idx) = val;
+        *self.get_mut_2d(idx) = val;
     }
 }
 
@@ -138,12 +138,12 @@ impl<T, const W: usize, const H: usize> Array2D<W, H> for [[T; H]; W] {
     type Item = T;
 
     fn get_2d(&self, idx: impl Into<usize>) -> &T {
-        let (x, y) = Self::coords_1to2(idx.into());
+        let (x, y) = Self::idx_1to2(idx.into());
         &self[x][y]
     }
 
-    fn get_2d_mut(&mut self, idx: impl Into<usize>) -> &mut T {
-        let (x, y) = Self::coords_1to2(idx.into());
+    fn get_mut_2d(&mut self, idx: impl Into<usize>) -> &mut T {
+        let (x, y) = Self::idx_1to2(idx.into());
         &mut self[x][y]
     }
 }
@@ -152,9 +152,9 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     type Item;
 
     fn get_3d(&self, idx: impl Into<usize>) -> &Self::Item;
-    fn get_3d_mut(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
+    fn get_mut_3d(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
 
-    fn coords_1to3(idx: usize) -> (usize, usize, usize) {
+    fn idx_1to3(idx: usize) -> (usize, usize, usize) {
         if idx >= W * H * D {
             panic!("Index {idx} out of bounds for array {W}x{H}x{D}");
         }
@@ -167,7 +167,7 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     }
 
     #[allow(unused)]
-    fn coords_3to1((x, y, z): (usize, usize, usize)) -> usize {
+    fn idx_3to1((x, y, z): (usize, usize, usize)) -> usize {
         if x >= W || y >= H || z >= D {
             panic!("Index {x}x{y}x{z} out of bounds for array {W}x{H}x{D}");
         }
@@ -175,7 +175,7 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     }
 
     fn set_3d(&mut self, idx: impl Into<usize>, val: Self::Item) {
-        *self.get_3d_mut(idx) = val;
+        *self.get_mut_3d(idx) = val;
     }
 }
 
@@ -183,12 +183,12 @@ impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D> for [[[
     type Item = T;
 
     fn get_3d(&self, idx: impl Into<usize>) -> &T {
-        let (x, y, z) = Self::coords_1to3(idx.into());
+        let (x, y, z) = Self::idx_1to3(idx.into());
         &self[x][y][z]
     }
 
-    fn get_3d_mut(&mut self, idx: impl Into<usize>) -> &mut T {
-        let (x, y, z) = Self::coords_1to3(idx.into());
+    fn get_mut_3d(&mut self, idx: impl Into<usize>) -> &mut T {
+        let (x, y, z) = Self::idx_1to3(idx.into());
         &mut self[x][y][z]
     }
 }

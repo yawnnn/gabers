@@ -1,7 +1,7 @@
 use crate::{gameboy::Gameboy, interrupt::Interrupt};
 
-#[rustfmt::skip]
 #[derive(Clone)]
+#[rustfmt::skip]
 pub enum JoypadKey {
     Right  = 1 << 0,
     Left   = 1 << 1,
@@ -36,7 +36,7 @@ impl Joypad {
 
     pub fn press(&mut self, key: JoypadKey) {
         self.state &= !(key as u8);
-        self.gb().inter_flag.raise(Interrupt::JOYPAD);
+        self.gb().int_flag.raise(Interrupt::JOYPAD);
     }
 
     pub fn release(&mut self, key: JoypadKey) {

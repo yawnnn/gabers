@@ -77,10 +77,10 @@ impl Cpu {
         let (res, carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 7);
         let (_, half_carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 3);
 
-        self.regs.set_flag(Flag::Z, false);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, half_carry);
-        self.regs.set_flag(Flag::C, carry);
+        self.regs.set(Flag::Z, false);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, half_carry);
+        self.regs.set(Flag::C, carry);
 
         self.write16(Reg16::HL, res);
     }
@@ -125,7 +125,7 @@ impl Cpu {
         Self: In8<I>,
     {
         let value = self.read8(src);
-        let cf = self.regs.get_flag(Flag::C);
+        let cf = self.regs.get(Flag::C);
         let res = self.alu_add(value, cf as u8);
         self.regs.write8(Reg8::A, res);
     }
@@ -157,9 +157,9 @@ impl Cpu {
         let (res, carry) = u16::bit_overflowing_add(&[reg_hl, value], 15);
         let (_, half_carry) = u16::bit_overflowing_add(&[reg_hl, value], 11);
 
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, half_carry);
-        self.regs.set_flag(Flag::C, carry);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, half_carry);
+        self.regs.set(Flag::C, carry);
 
         self.regs.write16(Reg16::HL, res);
     }
@@ -173,10 +173,10 @@ impl Cpu {
         let (res, carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 7);
         let (_, half_carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 3);
 
-        self.regs.set_flag(Flag::Z, false);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, half_carry);
-        self.regs.set_flag(Flag::C, carry);
+        self.regs.set(Flag::Z, false);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, half_carry);
+        self.regs.set(Flag::C, carry);
 
         self.write16(Reg16::HL, res);
     }
@@ -205,9 +205,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = value.wrapping_sub(1);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, true);
-        self.regs.set_flag(Flag::H, res & 0xF == 0);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, true);
+        self.regs.set(Flag::H, res & 0xF == 0);
 
         self.write8(io, res);
     }
@@ -236,9 +236,9 @@ impl Cpu {
         let value = self.read8(dst);
         let (res, half_carry) = u8::bit_overflowing_add(&[value, 1], 3);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, half_carry);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, half_carry);
 
         self.write8(dst, res);
     }
@@ -264,7 +264,7 @@ impl Cpu {
         Self: In8<I>,
     {
         let value = self.read8(src);
-        let cf = self.regs.get_flag(Flag::C);
+        let cf = self.regs.get(Flag::C);
         self.alu_sub(value, cf as u8);
     }
 
@@ -298,10 +298,10 @@ impl Cpu {
         let value = self.read8(src);
         let res = reg_a & value;
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, true);
-        self.regs.set_flag(Flag::C, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, true);
+        self.regs.set(Flag::C, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -313,8 +313,8 @@ impl Cpu {
         let value = self.regs.read8(Reg8::A);
         let res = !value;
 
-        self.regs.set_flag(Flag::N, true);
-        self.regs.set_flag(Flag::H, true);
+        self.regs.set(Flag::N, true);
+        self.regs.set(Flag::H, true);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -332,10 +332,10 @@ impl Cpu {
         let value = self.read8(src);
         let res = reg_a | value;
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
-        self.regs.set_flag(Flag::C, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
+        self.regs.set(Flag::C, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -353,10 +353,10 @@ impl Cpu {
         let value = self.read8(src);
         let res = reg_a ^ value;
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
-        self.regs.set_flag(Flag::C, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
+        self.regs.set(Flag::C, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -376,9 +376,9 @@ impl Cpu {
         let value = self.read8(src);
         let res = value & (1 << bit);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, true);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, true);
     }
 
     // RES u3, r8
@@ -422,9 +422,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_rl(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -436,9 +436,9 @@ impl Cpu {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rl(value);
 
-        self.regs.set_flag(Flag::Z, false);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, false);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -454,9 +454,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_rlc(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -468,9 +468,9 @@ impl Cpu {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rlc(value);
 
-        self.regs.set_flag(Flag::Z, false);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, false);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -486,9 +486,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_rr(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -500,9 +500,9 @@ impl Cpu {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rr(value);
 
-        self.regs.set_flag(Flag::Z, false);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, false);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -518,9 +518,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_rrc(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -532,9 +532,9 @@ impl Cpu {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rrc(value);
 
-        self.regs.set_flag(Flag::Z, false);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, false);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.regs.write8(Reg8::A, res);
     }
@@ -550,9 +550,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_sla(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -568,9 +568,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_sra(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -586,9 +586,9 @@ impl Cpu {
         let value = self.read8(io);
         let res = self.alu_srl(value);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
 
         self.write8(io, res);
     }
@@ -606,10 +606,10 @@ impl Cpu {
         let hi = value >> 4;
         let res = lo | hi;
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
-        self.regs.set_flag(Flag::C, false);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
+        self.regs.set(Flag::C, false);
 
         self.write8(io, res);
     }
@@ -716,18 +716,18 @@ impl Cpu {
     // Z N H C
     // - 0 0 *
     pub fn ccf(&mut self) {
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
-        self.regs.set_flag(Flag::C, !self.regs.get_flag(Flag::C));
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
+        self.regs.set(Flag::C, !self.regs.get(Flag::C));
     }
 
     // SCF
     // Z N H C
     // - 0 0 1
     pub fn scf(&mut self) {
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, false);
-        self.regs.set_flag(Flag::C, true);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, false);
+        self.regs.set(Flag::C, true);
     }
 
     /*
@@ -781,7 +781,7 @@ impl Cpu {
 
     // HALT
     pub fn halt(&mut self) {
-        if !self.ime && (*self.gb().inter_enable & *self.gb().inter_flag) != 0 {
+        if !self.ime && (self.gb().int_enable & *self.gb().int_flag) != 0 {
             self.halt_bug = true;
         } else {
             self.low_power_mode = true;
@@ -797,10 +797,10 @@ impl Cpu {
     // * - 0 *
     pub fn daa(&mut self) {
         let mut adj: u8 = 0;
-        let half_carry = self.regs.get_flag(Flag::H);
-        let mut carry = self.regs.get_flag(Flag::C);
+        let half_carry = self.regs.get(Flag::H);
+        let mut carry = self.regs.get(Flag::C);
         let a = self.read8(Reg8::A);
-        let res = if self.regs.get_flag(Flag::N) {
+        let res = if self.regs.get(Flag::N) {
             if half_carry {
                 adj |= 0x06;
             }
@@ -819,9 +819,9 @@ impl Cpu {
             a.wrapping_add(adj)
         };
         self.write8(Reg8::A, res);
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::H, false);
-        self.regs.set_flag(Flag::C, carry);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::H, false);
+        self.regs.set(Flag::C, carry);
     }
 
     // NOP
@@ -832,8 +832,5 @@ impl Cpu {
     // STOP
     // Z N H C
     // - - - -
-    pub fn stop(&mut self) {
-        // TODO: set DIV register to 0
-        panic!("STOP")
-    }
+    pub fn stop(&mut self) {}
 }

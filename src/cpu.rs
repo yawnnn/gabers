@@ -90,13 +90,13 @@ impl Cpu {
     }
 
     fn handle_interrupts(&mut self) -> Option<u8> {
-        let bits = *self.gb().inter_enable & *self.gb().inter_flag & Interrupt::BITMASK;
+        let bits = self.gb().int_enable & *self.gb().int_flag & Interrupt::BITMASK;
         let inter = (1 << bits.trailing_zeros()) as u8; // lowest bit has priority
         if !self.ime || inter == 0 {
             return None;
         }
         self.ime = false;
-        *self.gb().inter_flag &= !inter;
+        *self.gb().int_flag &= !inter;
         let addr = match inter {
             0x01 => 0x40, // V-Blank
             0x02 => 0x48, // LCD
@@ -119,7 +119,7 @@ impl Cpu {
         }
 
         let opcode = self.fetch8();
-        let cycles = self.decode_exec_instr(opcode);
+        let cycles = self.decode_exec(opcode);
 
         if self.pending_enable_ime {
             self.pending_enable_ime = false;
@@ -140,10 +140,10 @@ impl Cpu {
         let (res, carry) = u8::bit_overflowing_add(&[reg_a, value, cf], 7);
         let (_, half_carry) = u8::bit_overflowing_add(&[reg_a, value, cf], 3);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, false);
-        self.regs.set_flag(Flag::H, half_carry);
-        self.regs.set_flag(Flag::C, carry);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, false);
+        self.regs.set(Flag::H, half_carry);
+        self.regs.set(Flag::C, carry);
 
         res
     }
@@ -155,10 +155,10 @@ impl Cpu {
         let (res, carry) = u8::bit_overflowing_sub(&[reg_a, value, cf], 8);
         let (_, half_carry) = u8::bit_overflowing_sub(&[reg_a, value, cf], 4);
 
-        self.regs.set_flag(Flag::Z, res == 0);
-        self.regs.set_flag(Flag::N, true);
-        self.regs.set_flag(Flag::H, half_carry);
-        self.regs.set_flag(Flag::C, carry);
+        self.regs.set(Flag::Z, res == 0);
+        self.regs.set(Flag::N, true);
+        self.regs.set(Flag::H, half_carry);
+        self.regs.set(Flag::C, carry);
 
         res
     }
@@ -166,11 +166,11 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rl(&mut self, value: u8) -> u8 {
-        let cf = self.regs.get_flag(Flag::C);
+        let cf = self.regs.get(Flag::C);
         let res = (value << 1) | cf as u8;
         let new_cf = value & 0x80;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -181,7 +181,7 @@ impl Cpu {
         let res = value.rotate_left(1);
         let new_cf = value & 0x80;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -189,11 +189,11 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rr(&mut self, value: u8) -> u8 {
-        let cf = self.regs.get_flag(Flag::C);
+        let cf = self.regs.get(Flag::C);
         let res = (value >> 1) | ((cf as u8) << 7);
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -204,7 +204,7 @@ impl Cpu {
         let res = value.rotate_right(1);
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -215,7 +215,7 @@ impl Cpu {
         let res = value << 1;
         let new_cf = value & 0x80;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -226,7 +226,7 @@ impl Cpu {
         let res = (value << 1) | (value & 0x80);
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -237,7 +237,7 @@ impl Cpu {
         let res = value << 1;
         let new_cf = value & 0x01;
 
-        self.regs.set_flag(Flag::C, new_cf != 0);
+        self.regs.set(Flag::C, new_cf != 0);
 
         res
     }
@@ -258,10 +258,10 @@ impl Cpu {
 
     pub fn check_condition(&self, cond: Condition) -> bool {
         match cond {
-            Condition::CF => self.regs.get_flag(Flag::C),
-            Condition::NoCF => !self.regs.get_flag(Flag::C),
-            Condition::ZF => self.regs.get_flag(Flag::Z),
-            Condition::NoZF => !self.regs.get_flag(Flag::Z),
+            Condition::CF => self.regs.get(Flag::C),
+            Condition::NoCF => !self.regs.get(Flag::C),
+            Condition::ZF => self.regs.get(Flag::Z),
+            Condition::NoZF => !self.regs.get(Flag::Z),
         }
     }
 

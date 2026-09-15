@@ -132,7 +132,7 @@ impl GpuMode {
     const VBLANK_LEN: usize = 10;
 }
 
-pub struct Gpu {
+pub struct Ppu {
     pub buf: [[u8; 3]; SCREEN_W * SCREEN_H],
     tiles: [[[u8; TILE_SIZE]; TILE_COUNT]; 3],
     tilemaps: [[[u8; TILEMAP_SIDE]; TILEMAP_SIDE]; 2],
@@ -153,9 +153,9 @@ pub struct Gpu {
     pub gb: *mut Gameboy,
 }
 
-impl Gpu {
+impl Ppu {
     pub fn new() -> Self {
-        Gpu {
+        Ppu {
             buf: [[0; 3]; SCREEN_W * SCREEN_H],
             tiles: [[[0; TILE_SIZE]; TILE_COUNT]; 3],
             tilemaps: [[[0; TILEMAP_SIDE]; TILEMAP_SIDE]; 2],
@@ -207,7 +207,7 @@ impl Gpu {
         }
         let line_high = self.stat.val & bits != 0;
         if !self.stat.line_high && line_high {
-            self.gb().inter_flag.raise(Interrupt::LCD);
+            self.gb().int_flag.raise(Interrupt::LCD);
         }
         self.stat.line_high = line_high;
     }
@@ -280,10 +280,10 @@ impl Gpu {
 
     pub fn dma_transfer(gb: &mut Gameboy, addr_hi: u8) {
         let src_base = (addr_hi as u16) << 8;
-        let nbytes = std::mem::size_of_val(&gb.gpu.oam);
+        let nbytes = std::mem::size_of_val(&gb.ppu.oam);
         for i in 0..nbytes {
             let by = gb.read8(src_base + i as u16);
-            gb.gpu.oam.set_2d(i, by); // this ignores GpuMode r/w blocks
+            gb.ppu.oam.set_2d(i, by); // this ignores GpuMode r/w blocks
         }
     }
 
@@ -292,7 +292,7 @@ impl Gpu {
         self.buf[idx] = grayscale.rgb();
     }
 
-    fn draw_background_line_with(
+    fn render_background_line_with(
         &mut self,
         shift_x: u8,
         scroll_x: u8,
@@ -330,14 +330,14 @@ impl Gpu {
         }
     }
 
-    fn draw_background_line(&mut self) {
+    fn render_background_line(&mut self) {
         // the background can shifts the tiles (scroll), but draws the whole screen
         // the window can shifts the output area (shift), but uses the same tiles
         if self.lcdc.get(LcdControl::WINDOW_ENABLE) && self.window_y <= self.current_y {
             let shift_x = self.window_x.wrapping_sub(7);
-            self.draw_background_line_with(shift_x, 0, 0, LcdControl::WINDOW_TILEMAP_2);
+            self.render_background_line_with(shift_x, 0, 0, LcdControl::WINDOW_TILEMAP_2);
         } else if self.lcdc.get(LcdControl::BG_ENABLE) {
-            self.draw_background_line_with(
+            self.render_background_line_with(
                 0,
                 self.scroll_x,
                 self.scroll_y,
@@ -346,7 +346,7 @@ impl Gpu {
         }
     }
 
-    fn draw_objs_line(&mut self) {
+    fn render_objects_line(&mut self) {
         struct Object {
             x: u8,
             y: u8,
@@ -398,7 +398,6 @@ impl Gpu {
             } else {
                 0
             };
-
             let mut tile_y = obj.y % size as u8;
             if obj.flags.get(ObjectFlags::FLIP_Y) {
                 tile_y = size as u8 - 1 - tile_y;
@@ -431,9 +430,9 @@ impl Gpu {
         }
     }
 
-    fn draw_line(&mut self) {
-        self.draw_background_line();
-        self.draw_objs_line();
+    fn render_line(&mut self) {
+        self.render_background_line();
+        self.render_objects_line();
     }
 
     fn inc_current_y(&mut self) {
@@ -446,7 +445,7 @@ impl Gpu {
         self.check_stat();
     }
 
-    pub fn draw(&mut self, cycles: u32) {
+    pub fn render(&mut self, cycles: u32) {
         if !self.lcdc.get(LcdControl::LCD_ENABLE) {
             return;
         }
@@ -462,7 +461,7 @@ impl Gpu {
             }
             GpuMode::Draw => {
                 if frame_dots >= GpuMode::DRAW_END {
-                    self.draw_line();
+                    self.render_line();
                     self.change_mode(GpuMode::HBlank);
                 }
             }
@@ -470,7 +469,7 @@ impl Gpu {
                 if frame_dots >= GpuMode::HBLANK_END {
                     self.inc_current_y();
                     let new_mode = if self.current_y == SCREEN_H as u8 {
-                        self.gb().inter_flag.raise(Interrupt::VBLANK);
+                        self.gb().int_flag.raise(Interrupt::VBLANK);
                         GpuMode::VBlank
                     } else {
                         GpuMode::OamScan

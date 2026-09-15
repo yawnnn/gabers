@@ -19,7 +19,7 @@ pub enum Reg16 {
 }
 
 impl Reg16 {
-    fn to_le_reg8(self) -> [Reg8; 2] {
+    fn to_le_r8s(self) -> [Reg8; 2] {
         match self {
             Reg16::AF => [Reg8::A, Reg8::F],
             Reg16::BC => [Reg8::B, Reg8::C],
@@ -111,27 +111,25 @@ impl Registers {
         };
     }
 
-    pub fn read16(&self, reg: Reg16) -> u16 {
-        let [reg_lo, reg_hi] = Reg16::to_le_reg8(reg);
-        let lo = self.read8(reg_lo);
-        let hi = self.read8(reg_hi);
-
+    pub fn read16(&self, r16: Reg16) -> u16 {
+        let [r8_lo, r8_hi] = Reg16::to_le_r8s(r16);
+        let lo = self.read8(r8_lo);
+        let hi = self.read8(r8_hi);
         u16::from_le_bytes([lo, hi])
     }
 
-    pub fn write16(&mut self, reg: Reg16, word: u16) {
+    pub fn write16(&mut self, r16: Reg16, word: u16) {
         let [lo, hi] = u16::to_le_bytes(word);
-        let [reg_lo, reg_hi] = Reg16::to_le_reg8(reg);
-
-        self.write8(reg_lo, lo);
-        self.write8(reg_hi, hi);
+        let [r8_lo, r8_hi] = Reg16::to_le_r8s(r16);
+        self.write8(r8_lo, lo);
+        self.write8(r8_hi, hi);
     }
 
-    pub fn get_flag(&self, flag: Flag) -> bool {
+    pub fn get(&self, flag: Flag) -> bool {
         self.f & flag.bitmask() != 0
     }
 
-    pub fn set_flag(&mut self, flag: Flag, value: bool) {
+    pub fn set(&mut self, flag: Flag, value: bool) {
         if value {
             self.f |= flag.bitmask();
         } else {
