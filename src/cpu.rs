@@ -270,21 +270,29 @@ impl Cpu {
     }
 }
 
-pub trait In8<T: Copy> {
+pub trait In8<T> {
     fn read8(&mut self, gb: &mut Gameboy, src: T) -> u8;
 }
 
-pub trait Out8<T: Copy> {
+pub trait Out8<T> {
     fn write8(&mut self, gb: &mut Gameboy, dst: T, value: u8);
 }
 
-pub trait In16<T: Copy> {
+pub trait In16<T> {
     fn read16(&mut self, gb: &mut Gameboy, src: T) -> u16;
 }
 
-pub trait Out16<T: Copy> {
+pub trait Out16<T> {
     fn write16(&mut self, gb: &mut Gameboy, dst: T, value: u16);
 }
+
+pub trait Io8<T>: In8<T> + Out8<T> {}
+
+impl<T> Io8<T> for Cpu where Cpu: In8<T> + Out8<T> {}
+
+pub trait Io16<T>: In16<T> + Out16<T> {}
+
+impl<T> Io16<T> for Cpu where Cpu: In16<T> + Out16<T> {}
 
 impl In8<Reg8> for Cpu {
     fn read8(&mut self, _: &mut Gameboy, src: Reg8) -> u8 {
