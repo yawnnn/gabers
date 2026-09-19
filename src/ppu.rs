@@ -133,10 +133,10 @@ impl GpuMode {
 }
 
 pub struct Ppu {
-    pub buf: [[u8; 3]; SCREEN_W * SCREEN_H],
-    tiles: [[[u8; TILE_SIZE]; TILE_COUNT]; 3],
-    tilemaps: [[[u8; TILEMAP_SIDE]; TILEMAP_SIDE]; 2],
-    oam: [[u8; OBJ_SIZE]; OBJ_COUNT],
+    pub buf: Box<[[u8; 3]; SCREEN_W * SCREEN_H]>,
+    tiles: Box<[[[u8; TILE_SIZE]; TILE_COUNT]; 3]>,
+    tilemaps: Box<[[[u8; TILEMAP_SIDE]; TILEMAP_SIDE]; 2]>,
+    oam: Box<[[u8; OBJ_SIZE]; OBJ_COUNT]>,
     lcdc: LcdControl, // LCDC
     stat: Stat,       // STAT: LCD status
     mode: GpuMode,
@@ -149,17 +149,17 @@ pub struct Ppu {
     window_y: u8,               // WY
     bg_palette: Palette,        // BGP
     obj_palettes: [Palette; 2], // OBP0, OBP1
-    priority: [bool; SCREEN_W],
+    priority: Box<[bool; SCREEN_W]>,
     pub gb: *mut Gameboy,
 }
 
 impl Ppu {
     pub fn new() -> Self {
         Ppu {
-            buf: [[0; 3]; SCREEN_W * SCREEN_H],
-            tiles: [[[0; TILE_SIZE]; TILE_COUNT]; 3],
-            tilemaps: [[[0; TILEMAP_SIDE]; TILEMAP_SIDE]; 2],
-            oam: [[0; OBJ_SIZE]; OBJ_COUNT],
+            buf: boxed_2d(),
+            tiles: boxed_3d(),
+            tilemaps: boxed_3d(),
+            oam: boxed_2d(),
             lcdc: LcdControl(0),
             stat: Stat::default(),
             mode: GpuMode::OamScan,
@@ -172,7 +172,7 @@ impl Ppu {
             window_y: 0,
             bg_palette: Palette(0),
             obj_palettes: [Palette(0); 2],
-            priority: [false; SCREEN_W],
+            priority: boxed_1d(),
             gb: std::ptr::null_mut(),
         }
     }

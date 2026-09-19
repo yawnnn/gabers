@@ -26,11 +26,11 @@ pub struct Gameboy {
     pub int_flag: Interrupt,
     pub joypad: Joypad,
     pub timer: Timer,
-    pub wram: [u8; wram_range!().span()],
-    pub hram: [u8; hram_range!().span()],
+    pub wram: Box<[u8; wram_range!().span()]>,
+    pub hram: Box<[u8; hram_range!().span()]>,
 
     window: Window,
-    screen: Vec<u32>,
+    screen: Box<[u32; SCREEN_W * SCREEN_H]>,
 }
 
 impl Gameboy {
@@ -54,10 +54,10 @@ impl Gameboy {
             int_flag: Interrupt::new(),
             joypad: Joypad::new(),
             timer: Timer::new(),
-            wram: [0; wram_range!().span()],
-            hram: [0; hram_range!().span()],
+            wram: boxed_1d(),
+            hram: boxed_1d(),
             window,
-            screen: vec![0; SCREEN_W * SCREEN_H],
+            screen: boxed_1d(),
         }));
         gb.cpu.gb = gb.deref_mut() as *mut Gameboy;
         gb.ppu.gb = gb.deref_mut() as *mut Gameboy;
@@ -73,7 +73,7 @@ impl Gameboy {
             self.screen[i] = u32::from_le_bytes([r, g, b, 0xFF]);
         }
         self.window
-            .update_with_buffer(&self.screen, SCREEN_W, SCREEN_H)
+            .update_with_buffer(self.screen.as_ref(), SCREEN_W, SCREEN_H)
             .unwrap();
     }
 

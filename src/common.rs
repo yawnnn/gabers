@@ -108,10 +108,28 @@ impl<K: Eq + Copy, V, const N: usize> ConstMap<K, V, N> {
     }
 }
 
+// NOTE: 
+// - by keeping the generics all on the function (rather than a trait), the compiler infers them more easily
+// - boxed_1d can work for >1D arrays if the number of elements is small, since Default is impl'd for small arrays
+
+pub fn boxed_1d<T: Default + Copy, const N: usize>() -> Box<[T; N]> {
+    Box::new([T::default(); N])
+}
+
+pub fn boxed_2d<T: Default + Copy, const W: usize, const H: usize>() -> Box<[[T; H]; W]> {
+    Box::new([[T::default(); H]; W])
+}
+
+pub fn boxed_3d<T: Default + Copy, const W: usize, const H: usize, const D: usize>()
+-> Box<[[[T; D]; H]; W]> {
+    Box::new([[[T::default(); D]; H]; W])
+}
+
 pub trait Array2D<const W: usize, const H: usize> {
     type Item;
 
     fn get_2d(&self, idx: impl Into<usize>) -> &Self::Item;
+
     fn get_mut_2d(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
 
     fn idx_1to2(idx: usize) -> (usize, usize) {
@@ -152,6 +170,7 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     type Item;
 
     fn get_3d(&self, idx: impl Into<usize>) -> &Self::Item;
+
     fn get_mut_3d(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
 
     fn idx_1to3(idx: usize) -> (usize, usize, usize) {
