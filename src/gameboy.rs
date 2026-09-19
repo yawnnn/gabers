@@ -1,11 +1,10 @@
 use minifb::{Key, Window, WindowOptions};
-use std::ops::DerefMut;
-use std::{path::Path, pin::Pin};
+use std::path::Path;
 
 use crate::cartridge::Cartridge;
 use crate::common::*;
 use crate::cpu::Cpu;
-use crate::interrupt::Interrupt;
+use crate::interrupt::{Interrupts, InterruptFlags};
 use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
 use crate::ppu::Ppu;
@@ -20,10 +19,8 @@ const FRAME_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u3
 
 pub struct Gameboy {
     pub cartridge: Cartridge,
-    pub cpu: Cpu,
     pub ppu: Ppu,
-    pub int_enable: u8,
-    pub int_flag: Interrupt,
+    pub inter: Interrupts,
     pub joypad: Joypad,
     pub timer: Timer,
     pub wram: Box<[u8; wram_range!().span()]>,
@@ -34,7 +31,7 @@ pub struct Gameboy {
 }
 
 impl Gameboy {
-    pub fn new(cartridge_path: impl AsRef<Path>) -> Pin<Box<Self>> {
+    pub fn new(cartridge_path: impl AsRef<Path>) -> Box<Self> {
         let cartridge = Cartridge::new(cartridge_path.as_ref());
 
         let mut window = Window::new(
@@ -46,25 +43,17 @@ impl Gameboy {
         .unwrap();
         window.set_target_fps(TARGET_FPS);
 
-        let mut gb = Box::into_pin(Box::new(Gameboy {
+        Box::new(Gameboy {
             cartridge,
-            cpu: Cpu::new(),
             ppu: Ppu::new(),
-            int_enable: 0,
-            int_flag: Interrupt::new(),
+            inter: Interrupts::new(),
             joypad: Joypad::new(),
             timer: Timer::new(),
             wram: boxed_1d(),
             hram: boxed_1d(),
             window,
             screen: boxed_1d(),
-        }));
-        gb.cpu.gb = gb.deref_mut() as *mut Gameboy;
-        gb.ppu.gb = gb.deref_mut() as *mut Gameboy;
-        gb.timer.gb = gb.deref_mut() as *mut Gameboy;
-        gb.joypad.gb = gb.deref_mut() as *mut Gameboy;
-
-        gb
+        })
     }
 
     fn draw(&mut self) {
@@ -91,8 +80,8 @@ impl Gameboy {
 
         for (key, joypad_key) in joypad_keys {
             if self.window.is_key_down(key) {
-                self.joypad.press(joypad_key);
-                self.int_flag.raise(Interrupt::JOYPAD);
+                self.joypad.press(&mut self.inter, joypad_key);
+                self.inter.raise(InterruptFlags::JOYPAD);
             } else {
                 self.joypad.release(joypad_key);
             }
@@ -105,20 +94,22 @@ impl Gameboy {
         self.window.is_open()
     }
 
-    fn step(&mut self) -> u32 {
-        let system_cycles = self.cpu.step();
+    fn step(&mut self, cpu: &mut Cpu) -> u32 {
+        let system_cycles = cpu.step(self);
         let master_cycles = system_cycles as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
-        self.timer.tick(master_cycles);
-        self.ppu.render(master_cycles);
+        self.timer.tick(&mut self.inter, master_cycles);
+        self.ppu.render(&mut self.inter, master_cycles);
 
         master_cycles
     }
 
     pub fn main_loop(&mut self) {
+        let mut cpu = Cpu::new();
+
         while self.handle_input() {
             let mut cycles = 0;
             while cycles < FRAME_CYCLES {
-                cycles += self.step();
+                cycles += self.step(&mut cpu);
             }
             self.draw();
         }

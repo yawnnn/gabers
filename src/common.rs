@@ -108,7 +108,7 @@ impl<K: Eq + Copy, V, const N: usize> ConstMap<K, V, N> {
     }
 }
 
-// NOTE: 
+// NOTE:
 // - by keeping the generics all on the function (rather than a trait), the compiler infers them more easily
 // - boxed_1d can work for >1D arrays if the number of elements is small, since Default is impl'd for small arrays
 

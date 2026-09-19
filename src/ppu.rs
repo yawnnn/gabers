@@ -1,6 +1,6 @@
 use crate::common::*;
 use crate::gameboy::*;
-use crate::interrupt::Interrupt;
+use crate::interrupt::{Interrupts, InterruptFlags};
 use crate::mmu::{oam_range, tilemaps_range, tiles_range};
 
 const TILES_START: u16 = *tiles_range!().start() as u16;
@@ -150,7 +150,6 @@ pub struct Ppu {
     bg_palette: Palette,        // BGP
     obj_palettes: [Palette; 2], // OBP0, OBP1
     priority: Box<[bool; SCREEN_W]>,
-    pub gb: *mut Gameboy,
 }
 
 impl Ppu {
@@ -173,14 +172,7 @@ impl Ppu {
             bg_palette: Palette(0),
             obj_palettes: [Palette(0); 2],
             priority: boxed_1d(),
-            gb: std::ptr::null_mut(),
         }
-    }
-
-    fn gb(&mut self) -> &mut Gameboy {
-        // SAFETY: this is used to access data inside gb that's not already "in scope" (eg. cpu.gb().timer), so aliasing *shouldn't* be an issue
-        // TODO: this is still pretty unsafe and should be removed
-        unsafe { self.gb.as_mut().unwrap() }
     }
 
     fn oam_access(&self) -> bool {
@@ -195,7 +187,7 @@ impl Ppu {
         self.current_y == self.y_cmp
     }
 
-    fn check_stat(&mut self) {
+    fn check_stat(&mut self, inter: &mut Interrupts) {
         let mut bits = match self.mode {
             GpuMode::HBlank => Stat::INT_HBLANK,
             GpuMode::VBlank => Stat::INT_VBLANK,
@@ -207,7 +199,7 @@ impl Ppu {
         }
         let line_high = self.stat.val & bits != 0;
         if !self.stat.line_high && line_high {
-            self.gb().int_flag.raise(Interrupt::LCD);
+            inter.raise(InterruptFlags::LCD);
         }
         self.stat.line_high = line_high;
     }
@@ -435,17 +427,17 @@ impl Ppu {
         self.render_objects_line();
     }
 
-    fn inc_current_y(&mut self) {
+    fn inc_current_y(&mut self, inter: &mut Interrupts) {
         self.current_y += 1;
-        self.check_stat();
+        self.check_stat(inter);
     }
 
-    fn change_mode(&mut self, new_mode: GpuMode) {
+    fn change_mode(&mut self, inter: &mut Interrupts, new_mode: GpuMode) {
         self.mode = new_mode;
-        self.check_stat();
+        self.check_stat(inter);
     }
 
-    pub fn render(&mut self, cycles: u32) {
+    pub fn render(&mut self, inter: &mut Interrupts, cycles: u32) {
         if !self.lcdc.get(LcdControl::LCD_ENABLE) {
             return;
         }
@@ -456,34 +448,34 @@ impl Ppu {
         match self.mode {
             GpuMode::OamScan => {
                 if frame_dots >= GpuMode::OAM_SCAN_END {
-                    self.change_mode(GpuMode::Draw);
+                    self.change_mode(inter, GpuMode::Draw);
                 }
             }
             GpuMode::Draw => {
                 if frame_dots >= GpuMode::DRAW_END {
                     self.render_line();
-                    self.change_mode(GpuMode::HBlank);
+                    self.change_mode(inter, GpuMode::HBlank);
                 }
             }
             GpuMode::HBlank => {
                 if frame_dots >= GpuMode::HBLANK_END {
-                    self.inc_current_y();
+                    self.inc_current_y(inter);
                     let new_mode = if self.current_y == SCREEN_H as u8 {
-                        self.gb().int_flag.raise(Interrupt::VBLANK);
+                        inter.raise(InterruptFlags::VBLANK);
                         GpuMode::VBlank
                     } else {
                         GpuMode::OamScan
                     };
-                    self.change_mode(new_mode);
+                    self.change_mode(inter, new_mode);
                 }
             }
             GpuMode::VBlank => {
                 if frame_dots >= GpuMode::FRAME_END {
-                    self.inc_current_y();
+                    self.inc_current_y(inter);
                     if self.current_y == (SCREEN_H + GpuMode::VBLANK_LEN) as u8 {
                         self.current_y = 0;
                         self.dots = 0;
-                        self.change_mode(GpuMode::OamScan);
+                        self.change_mode(inter, GpuMode::OamScan);
                     }
                 }
             }

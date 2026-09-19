@@ -1,4 +1,4 @@
-use crate::{gameboy::Gameboy, interrupt::Interrupt};
+use crate::interrupt::{Interrupts, InterruptFlags};
 
 #[derive(Clone)]
 #[rustfmt::skip]
@@ -16,7 +16,6 @@ pub enum JoypadKey {
 pub struct Joypad {
     state: u8,
     select: u8,
-    pub gb: *mut Gameboy,
 }
 
 impl Joypad {
@@ -24,19 +23,12 @@ impl Joypad {
         Joypad {
             state: 0xFF,
             select: 0x00,
-            gb: std::ptr::null_mut(),
         }
     }
 
-    fn gb(&mut self) -> &mut Gameboy {
-        // SAFETY: this is used to access data inside gb that's not already "in scope" (eg. cpu.gb().timer), so aliasing *shouldn't* be an issue
-        // TODO: this is still pretty unsafe and should be removed
-        unsafe { self.gb.as_mut().unwrap() }
-    }
-
-    pub fn press(&mut self, key: JoypadKey) {
+    pub fn press(&mut self, inter: &mut Interrupts, key: JoypadKey) {
         self.state &= !(key as u8);
-        self.gb().int_flag.raise(Interrupt::JOYPAD);
+        inter.raise(InterruptFlags::JOYPAD);
     }
 
     pub fn release(&mut self, key: JoypadKey) {

@@ -133,7 +133,7 @@ impl Gameboy {
             joypad_addr!() => self.joypad.read8(),
             serial_range!() => todo!(),
             timer_range!() => self.timer.read8(addr),
-            if_addr!() => *self.int_flag,
+            if_addr!() => *self.inter.flags,
             audio_range!() => todo!(),
             lcd_range!() => self.ppu.read8(addr),
             dma_addr!() => todo!(),
@@ -141,7 +141,7 @@ impl Gameboy {
             window_range!() => self.ppu.read8(addr),
             unmap_bootrom_addr!() => todo!(),
             hram_range!() => self.hram[addr as usize - hram_range!().start()],
-            ie_addr!() => self.int_enable,
+            ie_addr!() => self.inter.enable,
             _ => 0xFF,
         }
     }
@@ -157,8 +157,8 @@ impl Gameboy {
             oam_range!() => self.ppu.write8(addr, val),
             joypad_addr!() => self.joypad.write8(val),
             serial_range!() => todo!(),
-            timer_range!() => self.timer.write8(addr, val),
-            if_addr!() => *self.int_flag = val,
+            timer_range!() => self.timer.write8(&mut self.inter, addr, val),
+            if_addr!() => *self.inter.flags = val,
             audio_range!() => todo!(),
             lcd_range!() => self.ppu.write8(addr, val),
             dma_addr!() => Ppu::dma_transfer(self, val),
@@ -166,7 +166,7 @@ impl Gameboy {
             window_range!() => self.ppu.write8(addr, val),
             unmap_bootrom_addr!() => todo!(),
             hram_range!() => self.hram[addr as usize - hram_range!().start()] = val,
-            ie_addr!() => self.int_enable = val,
+            ie_addr!() => self.inter.enable = val,
             _ => (),
         }
     }

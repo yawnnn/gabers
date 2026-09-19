@@ -1,4 +1,7 @@
-use crate::{gameboy::*, interrupt::Interrupt};
+use crate::{
+    gameboy::*,
+    interrupt::{Interrupts, InterruptFlags},
+};
 
 pub struct Timer {
     ticks: u16,     // DIV: Divide register
@@ -6,7 +9,6 @@ pub struct Timer {
     modulo: u8,     // TMA: Timer modulo
     control: u8,    // TAC: Timer control
     line_low: bool, // current status
-    pub gb: *mut Gameboy,
 }
 
 impl Timer {
@@ -17,14 +19,7 @@ impl Timer {
             modulo: 0,
             control: 0xF8,
             line_low: false,
-            gb: std::ptr::null_mut(),
         }
-    }
-
-    fn gb(&mut self) -> &mut Gameboy {
-        // SAFETY: this is used to access data inside gb that's not already "in scope" (eg. cpu.gb().timer), so aliasing *shouldn't* be an issue
-        // TODO: this is still pretty unsafe and should be removed
-        unsafe { self.gb.as_mut().unwrap() }
     }
 
     pub fn read8(&self, addr: u16) -> u8 {
@@ -37,17 +32,17 @@ impl Timer {
         }
     }
 
-    pub fn write8(&mut self, addr: u16, val: u8) {
+    pub fn write8(&mut self, inter: &mut Interrupts, addr: u16, val: u8) {
         match addr {
             0xFF04 => {
                 self.ticks = 0;
-                self.check_inter();
+                self.check_inter(inter);
             }
             0xFF05 => self.counter = val,
             0xFF06 => self.modulo = val,
             0xFF07 => {
                 self.control = val;
-                self.check_inter();
+                self.check_inter(inter);
             }
             _ => unreachable!(),
         }
@@ -61,24 +56,24 @@ impl Timer {
         [256, 4, 16, 64][(self.control & 0b11) as usize] * MASTER_SYSTEM_CLOCK_RATIO as u16
     }
 
-    fn check_inter(&mut self) {
+    fn check_inter(&mut self, inter: &mut Interrupts) {
         let line_low = self.enabled() && self.ticks & self.freq() == 0;
         if !self.line_low && line_low {
             match self.counter.checked_add(1) {
                 Some(val) => self.counter = val,
                 None => {
                     self.counter = self.modulo;
-                    self.gb().int_flag.raise(Interrupt::TIMER);
+                    inter.raise(InterruptFlags::TIMER);
                 }
             }
         }
         self.line_low = line_low;
     }
 
-    pub fn tick(&mut self, cycles: u32) {
+    pub fn tick(&mut self, inter: &mut Interrupts, cycles: u32) {
         for _ in 0..cycles {
             self.ticks = self.ticks.wrapping_add(1);
-            self.check_inter();
+            self.check_inter(inter);
         }
     }
 }
