@@ -41,33 +41,21 @@ pub enum Flag {
     /// - When the result of a 16-bit addition is higher than $FFFF.
     /// - When the result of a subtraction or comparison is lower than zero (like in Z80 and x86 CPUs, but unlike in 65XX and ARM CPUs).
     /// - When a rotate/shift operation shifts out a “1” bit.
-    C,
+    C = 1 << 4,
 
     /// Half-carry flag  
     /// These flags are used by the DAA instruction only.  
     /// Indicates carry for the lower 4 bits of the result.  
-    H,
+    H = 1 << 5,
 
     /// Subtraction flag  
     /// These flags are used by the DAA instruction only.  
     /// Indicates whether the previous instruction has been a subtraction.  
-    N,
+    N = 1 << 6,
 
     /// Zero flag  
     /// Is set if and only if the result of an operation is zero. Used by conditional jumps.  
-    Z,
-}
-
-impl Flag {
-    /// Get corresponding bitmask
-    pub fn bitmask(&self) -> u8 {
-        match self {
-            Flag::C => 1 << 4,
-            Flag::H => 1 << 5,
-            Flag::N => 1 << 6,
-            Flag::Z => 1 << 7,
-        }
-    }
+    Z = 1 << 7,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -126,14 +114,14 @@ impl Registers {
     }
 
     pub fn get(&self, flag: Flag) -> bool {
-        self.f & flag.bitmask() != 0
+        self.f & (flag as u8) != 0
     }
 
     pub fn set(&mut self, flag: Flag, value: bool) {
         if value {
-            self.f |= flag.bitmask();
+            self.f |= flag as u8;
         } else {
-            self.f &= !flag.bitmask();
+            self.f &= !(flag as u8);
         }
     }
 }
