@@ -1,6 +1,6 @@
 use crate::common::*;
 use crate::gameboy::*;
-use crate::interrupt::{Interrupts, InterruptFlags};
+use crate::interrupt::{InterruptFlags, Interrupts};
 use crate::mmu::{oam_range, tilemaps_range, tiles_range};
 
 const TILES_START: u16 = *tiles_range!().start() as u16;
@@ -18,16 +18,6 @@ fn color_id(lo: u8, hi: u8, bit: usize) -> u8 {
     let lo_bit = (lo >> bit) & 1;
     let hi_bit = (hi >> bit) & 1;
     hi_bit << 1 | lo_bit
-}
-
-#[derive(Clone, Copy)]
-struct Palette(u8);
-
-impl Palette {
-    fn grayscale(self, color_id: u8) -> GrayScale {
-        let color_shade = self.0 >> (color_id * 2) & 0b11;
-        GrayScale::from(color_shade)
-    }
 }
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -59,6 +49,16 @@ impl GrayScale {
 }
 
 #[derive(Clone, Copy)]
+struct Palette(u8);
+
+impl Palette {
+    fn grayscale(self, color_id: u8) -> GrayScale {
+        let color_shade = self.0 >> (color_id * 2) & 0b11;
+        GrayScale::from(color_shade)
+    }
+}
+
+#[derive(Clone, Copy)]
 struct LcdControl(u8);
 
 #[rustfmt::skip]
@@ -77,10 +77,10 @@ impl LcdControl {
     }
 }
 
-struct ObjectFlags(u8);
+struct ObjFlags(u8);
 
 #[rustfmt::skip]
-impl ObjectFlags {
+impl ObjFlags {
     const PALETTE_2: u8  = 1 << 4;
     const FLIP_X: u8     = 1 << 5;
     const FLIP_Y: u8     = 1 << 6;
@@ -132,11 +132,16 @@ impl GpuMode {
     const VBLANK_LEN: usize = 10;
 }
 
+type Pixel = [u8; 3];
+type Tile = [u8; TILE_SIZE];
+type Object = [u8; OBJ_SIZE];
+type Tilemap = [[u8; TILEMAP_SIDE]; TILEMAP_SIDE];
+
 pub struct Ppu {
-    pub buf: Box<[[u8; 3]; SCREEN_W * SCREEN_H]>,
-    tiles: Box<[[[u8; TILE_SIZE]; TILE_COUNT]; 3]>,
-    tilemaps: Box<[[[u8; TILEMAP_SIDE]; TILEMAP_SIDE]; 2]>,
-    oam: Box<[[u8; OBJ_SIZE]; OBJ_COUNT]>,
+    pub buf: Box<[Pixel; SCREEN_W * SCREEN_H]>,
+    tiles: Box<[[Tile; TILE_COUNT]; 3]>,
+    tilemaps: Box<[Tilemap; 2]>,
+    oam: Box<[Object; OBJ_COUNT]>,
     lcdc: LcdControl, // LCDC
     stat: Stat,       // STAT: LCD status
     mode: GpuMode,
@@ -339,11 +344,11 @@ impl Ppu {
     }
 
     fn render_objects_line(&mut self) {
-        struct Object {
+        struct ObjData {
             x: u8,
             y: u8,
             tile_id: u8,
-            flags: ObjectFlags,
+            flags: ObjFlags,
         }
 
         if !self.lcdc.get(LcdControl::OBJ_ENABLE) {
@@ -356,7 +361,7 @@ impl Ppu {
             TILE_SIDE
         };
 
-        let mut objs = self
+        let mut objs: Vec<_> = self
             .oam
             .iter()
             .filter_map(|&[y, x, tile_id, flags]| {
@@ -368,30 +373,30 @@ impl Ppu {
                     tile_id
                 };
 
-                let flags = ObjectFlags(flags);
+                let flags = ObjFlags(flags);
                 let y_range = y..(y + size as u8);
-                y_range.contains(&self.current_y).then_some(Object {
-                    y,
+                y_range.contains(&self.current_y).then_some(ObjData {
                     x,
+                    y,
                     tile_id,
                     flags,
                 })
             })
             .take(MAX_OBJS_X_LINE)
             .enumerate()
-            .collect::<Vec<_>>();
+            .collect();
 
         objs.sort_by_key(|(i, obj)| (obj.x, *i));
 
         // start from the last one so i overdraw overlapping ones with the highest priority one
         for (_, obj) in objs.into_iter().rev() {
-            let palette = if obj.flags.get(ObjectFlags::PALETTE_2) {
+            let palette = if obj.flags.get(ObjFlags::PALETTE_2) {
                 1
             } else {
                 0
             };
             let mut tile_y = obj.y % size as u8;
-            if obj.flags.get(ObjectFlags::FLIP_Y) {
+            if obj.flags.get(ObjFlags::FLIP_Y) {
                 tile_y = size as u8 - 1 - tile_y;
             }
 
@@ -401,7 +406,7 @@ impl Ppu {
             let hi = tile[tile_byte + 1];
 
             for j in 0..TILE_SIDE {
-                let bit = if obj.flags.get(ObjectFlags::FLIP_X) {
+                let bit = if obj.flags.get(ObjFlags::FLIP_X) {
                     TILE_SIDE - 1 - j
                 } else {
                     j
@@ -411,7 +416,7 @@ impl Ppu {
                 let color_id = color_id(lo, hi, bit);
                 if current_x >= SCREEN_W
                     || color_id == 0
-                    || (obj.flags.get(ObjectFlags::PRIORITY) && self.priority[current_x])
+                    || (obj.flags.get(ObjFlags::PRIORITY) && self.priority[current_x])
                 {
                     continue;
                 }

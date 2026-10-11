@@ -1,6 +1,6 @@
 use crate::{
     gameboy::*,
-    interrupt::{Interrupts, InterruptFlags},
+    interrupt::{InterruptFlags, Interrupts},
 };
 
 pub struct Timer {

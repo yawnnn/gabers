@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::cartridge::Cartridge;
 use crate::common::*;
 use crate::cpu::Cpu;
-use crate::interrupt::{Interrupts, InterruptFlags};
+use crate::interrupt::{InterruptFlags, Interrupts};
 use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
 use crate::ppu::Ppu;

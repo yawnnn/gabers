@@ -286,14 +286,6 @@ pub trait Out16<T> {
     fn write16(&mut self, gb: &mut Gameboy, dst: T, value: u16);
 }
 
-pub trait Io8<T>: In8<T> + Out8<T> {}
-
-impl<T> Io8<T> for Cpu where Cpu: In8<T> + Out8<T> {}
-
-pub trait Io16<T>: In16<T> + Out16<T> {}
-
-impl<T> Io16<T> for Cpu where Cpu: In16<T> + Out16<T> {}
-
 impl In8<Reg8> for Cpu {
     fn read8(&mut self, _: &mut Gameboy, src: Reg8) -> u8 {
         self.regs.read8(src)
@@ -355,3 +347,11 @@ impl In16<Imm16> for Cpu {
         self.fetch16(gb)
     }
 }
+
+pub trait Io8<T>: In8<T> + Out8<T> {}
+
+impl<T> Io8<T> for Cpu where Cpu: In8<T> + Out8<T> {}
+
+pub trait Io16<T>: In16<T> + Out16<T> {}
+
+impl<T> Io16<T> for Cpu where Cpu: In16<T> + Out16<T> {}
