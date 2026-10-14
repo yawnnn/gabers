@@ -122,6 +122,10 @@ macro_rules! unmap_bootrom_addr {
 
 impl Gameboy {
     pub fn read8(&self, addr: u16) -> u8 {
+        if self.in_dma_transfer() && !hram_range!().contains(&addr) {
+            return 0xFF;
+        }
+
         match addr {
             rom_range!() => self.cartridge.read(addr),
             tiles_range!() => self.ppu.read8(addr),
@@ -136,7 +140,7 @@ impl Gameboy {
             if_addr!() => *self.inter.flags,
             audio_range!() => todo!(),
             lcd_range!() => self.ppu.read8(addr),
-            dma_addr!() => todo!(),
+            dma_addr!() => 0xFF,
             palette_range!() => self.ppu.read8(addr),
             window_range!() => self.ppu.read8(addr),
             unmap_bootrom_addr!() => todo!(),
@@ -147,6 +151,10 @@ impl Gameboy {
     }
 
     pub fn write8(&mut self, addr: u16, val: u8) {
+        if self.in_dma_transfer() && !hram_range!().contains(&addr) {
+            return;
+        }
+
         match addr {
             rom_range!() => self.cartridge.write(addr, val),
             tiles_range!() => self.ppu.write8(addr, val),
@@ -161,7 +169,7 @@ impl Gameboy {
             if_addr!() => *self.inter.flags = val,
             audio_range!() => todo!(),
             lcd_range!() => self.ppu.write8(addr, val),
-            dma_addr!() => Ppu::dma_transfer(self, val),
+            dma_addr!() => self.start_dma_transfer(val),
             palette_range!() => self.ppu.write8(addr, val),
             window_range!() => self.ppu.write8(addr, val),
             unmap_bootrom_addr!() => todo!(),

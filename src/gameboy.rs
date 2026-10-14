@@ -7,7 +7,7 @@ use crate::cpu::Cpu;
 use crate::interrupt::{InterruptFlags, Interrupts};
 use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
-use crate::ppu::Ppu;
+use crate::ppu::*;
 use crate::timer::Timer;
 
 pub const MASTER_CLOCK: usize = 4_194_304;
@@ -17,6 +17,35 @@ pub const SCREEN_H: usize = 144;
 const TARGET_FPS: usize = 60;
 const FRAME_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
 
+#[derive(Default, Clone, Copy)]
+struct DmaTransfer {
+    addr: u16,
+    pos: usize,
+}
+
+impl DmaTransfer {
+    fn new(start: u8) -> Self {
+        DmaTransfer {
+            addr: (start as u16) << 8,
+            pos: 0,
+        }
+    }
+}
+
+impl Iterator for DmaTransfer {
+    type Item = Self;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= std::mem::size_of::<Oam>() {
+            return None;
+        }
+        let val = *self;
+        self.addr = self.addr.wrapping_add(1);
+        self.pos += 1;
+        Some(val)
+    }
+}
+
 pub struct Gameboy {
     pub cartridge: Cartridge,
     pub ppu: Ppu,
@@ -25,6 +54,7 @@ pub struct Gameboy {
     pub timer: Timer,
     pub wram: Box<[u8; wram_range!().span()]>,
     pub hram: Box<[u8; hram_range!().span()]>,
+    dma_transfer: Option<DmaTransfer>,
 
     window: Window,
     screen: Box<[u32; SCREEN_W * SCREEN_H]>,
@@ -53,6 +83,7 @@ impl Gameboy {
             hram: boxed_1d(),
             window,
             screen: boxed_1d(),
+            dma_transfer: None,
         })
     }
 
@@ -94,10 +125,30 @@ impl Gameboy {
         self.window.is_open()
     }
 
+    pub fn in_dma_transfer(&self) -> bool {
+        self.dma_transfer.is_some()
+    }
+
+    pub fn start_dma_transfer(&mut self, start: u8) {
+        self.dma_transfer = Some(DmaTransfer::new(start));
+    }
+
+    fn tick_dma_transfer(&mut self, cycles: u32) {
+        if let Some(dma_transfer) = self.dma_transfer {
+            let mut it = dma_transfer.take(cycles as usize);
+            for dma_transfer in &mut it {
+                let val = self.read8(dma_transfer.addr);
+                self.ppu.write8_oam_transfer(dma_transfer.pos, val); // ignore r/w blocks
+            }
+            self.dma_transfer = it.next();
+        }
+    }
+
     fn step(&mut self, cpu: &mut Cpu) -> u32 {
         let system_cycles = cpu.step(self);
         let master_cycles = system_cycles as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
         self.timer.tick(&mut self.inter, master_cycles);
+        self.tick_dma_transfer(master_cycles);
         self.ppu.render(&mut self.inter, master_cycles);
 
         master_cycles

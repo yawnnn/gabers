@@ -136,12 +136,13 @@ type Pixel = [u8; 3];
 type Tile = [u8; TILE_SIZE];
 type Object = [u8; OBJ_SIZE];
 type Tilemap = [[u8; TILEMAP_SIDE]; TILEMAP_SIDE];
+pub type Oam = [Object; OBJ_COUNT];
 
 pub struct Ppu {
     pub buf: Box<[Pixel; SCREEN_W * SCREEN_H]>,
     tiles: Box<[[Tile; TILE_COUNT]; 3]>,
     tilemaps: Box<[Tilemap; 2]>,
-    oam: Box<[Object; OBJ_COUNT]>,
+    oam: Box<Oam>,
     lcdc: LcdControl, // LCDC
     stat: Stat,       // STAT: LCD status
     mode: GpuMode,
@@ -209,6 +210,10 @@ impl Ppu {
         self.stat.line_high = line_high;
     }
 
+    pub fn write8_oam_transfer(&mut self, pos: usize, val: u8) {
+        self.oam.set_2d(pos, val);
+    }
+
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             tiles_range!() => {
@@ -272,15 +277,6 @@ impl Ppu {
             0xFF4A => self.window_x = val,
             0xFF4B => self.window_y = val,
             _ => todo!(),
-        }
-    }
-
-    pub fn dma_transfer(gb: &mut Gameboy, addr_hi: u8) {
-        let src_base = (addr_hi as u16) << 8;
-        let nbytes = std::mem::size_of_val(&gb.ppu.oam);
-        for i in 0..nbytes {
-            let by = gb.read8(src_base + i as u16);
-            gb.ppu.oam.set_2d(i, by); // this ignores GpuMode r/w blocks
         }
     }
 
