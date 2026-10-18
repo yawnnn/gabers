@@ -128,7 +128,7 @@ impl GpuMode {
     const OAM_SCAN_END: u32 = 80;
     const DRAW_END: u32 = Self::OAM_SCAN_END + 172;
     const HBLANK_END: u32 = Self::DRAW_END + 204;
-    const FRAME_END: u32 = 456;
+    const SCANLINE_END: u32 = 456;
     const VBLANK_LEN: usize = 10;
 }
 
@@ -146,7 +146,7 @@ pub struct Ppu {
     lcdc: LcdControl, // LCDC
     stat: Stat,       // STAT: LCD status
     mode: GpuMode,
-    dots: u32,
+    dots_x_frame: u32,          // dots
     current_y: u8,              // LY
     y_cmp: u8,                  // LYC
     scroll_x: u8,               // SCX
@@ -168,7 +168,7 @@ impl Ppu {
             lcdc: LcdControl(0),
             stat: Stat::default(),
             mode: GpuMode::OamScan,
-            dots: 0,
+            dots_x_frame: 0,
             current_y: 0,
             y_cmp: 0,
             scroll_x: 0,
@@ -438,28 +438,28 @@ impl Ppu {
         self.check_stat(inter);
     }
 
-    pub fn render(&mut self, inter: &mut Interrupts, cycles: u32) {
+    pub fn render(&mut self, inter: &mut Interrupts, cycles: TCycle) {
         if !self.lcdc.get(LcdControl::LCD_ENABLE) {
             return;
         }
 
-        let frame_dots = (self.dots % GpuMode::FRAME_END) + cycles;
-        self.dots += cycles;
+        let scanline_dots = (self.dots_x_frame % GpuMode::SCANLINE_END) + cycles as u32;
+        self.dots_x_frame += cycles as u32;
 
         match self.mode {
             GpuMode::OamScan => {
-                if frame_dots >= GpuMode::OAM_SCAN_END {
+                if scanline_dots >= GpuMode::OAM_SCAN_END {
                     self.change_mode(inter, GpuMode::Draw);
                 }
             }
             GpuMode::Draw => {
-                if frame_dots >= GpuMode::DRAW_END {
+                if scanline_dots >= GpuMode::DRAW_END {
                     self.render_line();
                     self.change_mode(inter, GpuMode::HBlank);
                 }
             }
             GpuMode::HBlank => {
-                if frame_dots >= GpuMode::HBLANK_END {
+                if scanline_dots >= GpuMode::HBLANK_END {
                     self.inc_current_y(inter);
                     let new_mode = if self.current_y == SCREEN_H as u8 {
                         inter.raise(InterruptFlags::VBLANK);
@@ -471,11 +471,11 @@ impl Ppu {
                 }
             }
             GpuMode::VBlank => {
-                if frame_dots >= GpuMode::FRAME_END {
+                if scanline_dots >= GpuMode::SCANLINE_END {
                     self.inc_current_y(inter);
                     if self.current_y == (SCREEN_H + GpuMode::VBLANK_LEN) as u8 {
                         self.current_y = 0;
-                        self.dots = 0;
+                        self.dots_x_frame = 0;
                         self.change_mode(inter, GpuMode::OamScan);
                     }
                 }

@@ -10,12 +10,24 @@ use crate::mmu::*;
 use crate::ppu::*;
 use crate::timer::Timer;
 
-pub const MASTER_CLOCK: usize = 4_194_304;
-pub const MASTER_SYSTEM_CLOCK_RATIO: usize = 4;
 pub const SCREEN_W: usize = 160;
 pub const SCREEN_H: usize = 144;
+pub const SYSTEM_CLOCK: usize = 4_194_304; // TCycles per second
 const TARGET_FPS: usize = 60;
-const FRAME_CYCLES: u32 = (MASTER_CLOCK as f64 / TARGET_FPS as f64).ceil() as u32;
+const TCYCLES_PER_FRAME: TCycle = (SYSTEM_CLOCK as f64 / TARGET_FPS as f64).round() as TCycle;
+
+pub type MCycle = u8;
+pub type TCycle = u16;
+
+pub trait ToTCycle {
+    fn to_tcycle(self) -> TCycle;
+}
+
+impl ToTCycle for MCycle {
+    fn to_tcycle(self) -> TCycle {
+        self as TCycle * 4
+    }
+}
 
 #[derive(Default, Clone, Copy)]
 struct DmaTransfer {
@@ -133,7 +145,7 @@ impl Gameboy {
         self.dma_transfer = Some(DmaTransfer::new(start));
     }
 
-    fn tick_dma_transfer(&mut self, cycles: u32) {
+    fn tick_dma_transfer(&mut self, cycles: MCycle) {
         if let Some(dma_transfer) = self.dma_transfer {
             let mut it = dma_transfer.take(cycles as usize);
             for dma_transfer in &mut it {
@@ -144,14 +156,14 @@ impl Gameboy {
         }
     }
 
-    fn step(&mut self, cpu: &mut Cpu) -> u32 {
-        let system_cycles = cpu.step(self);
-        let master_cycles = system_cycles as u32 * MASTER_SYSTEM_CLOCK_RATIO as u32;
-        self.timer.tick(&mut self.inter, master_cycles);
-        self.tick_dma_transfer(master_cycles);
-        self.ppu.render(&mut self.inter, master_cycles);
+    fn step(&mut self, cpu: &mut Cpu) -> TCycle {
+        let mcycles = cpu.step(self);
+        let tcycles = mcycles.to_tcycle();
+        self.timer.tick(&mut self.inter, tcycles);
+        self.tick_dma_transfer(mcycles);
+        self.ppu.render(&mut self.inter, tcycles);
 
-        master_cycles
+        tcycles
     }
 
     pub fn main_loop(&mut self) {
@@ -159,7 +171,7 @@ impl Gameboy {
 
         while self.handle_input() {
             let mut cycles = 0;
-            while cycles < FRAME_CYCLES {
+            while cycles < TCYCLES_PER_FRAME {
                 cycles += self.step(&mut cpu);
             }
             self.draw();

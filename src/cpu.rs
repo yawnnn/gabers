@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::gameboy::Gameboy;
+use crate::gameboy::{Gameboy, MCycle};
 use crate::registers::*;
 
 pub enum Condition {
@@ -80,7 +80,7 @@ impl Cpu {
         }
     }
 
-    fn handle_interrupts(&mut self, gb: &mut Gameboy) -> Option<u8> {
+    fn handle_interrupts(&mut self, gb: &mut Gameboy) -> Option<MCycle> {
         let bits = gb.inter.enabled();
         let inter = (1 << bits.trailing_zeros()) as u8; // lowest bit has priority
         if !self.ime || inter == 0 {
@@ -101,12 +101,13 @@ impl Cpu {
         Some(5) // 2 cycles of NOP + 3 cycles for call
     }
 
-    pub fn step(&mut self, gb: &mut Gameboy) -> u8 {
+    pub fn step(&mut self, gb: &mut Gameboy) -> MCycle {
         if let Some(cycles) = self.handle_interrupts(gb) {
             return cycles;
         }
+
         if self.low_power_mode {
-            return 1; // NOOP
+            return 1; // NOP
         }
 
         let opcode = self.fetch8(gb);
@@ -116,6 +117,7 @@ impl Cpu {
             self.pending_enable_ime = false;
             self.ime = true;
         }
+
         if self.halt_bug {
             self.halt_bug = false;
             self.regs.pc = self.regs.pc.wrapping_sub(1);

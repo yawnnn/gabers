@@ -1,9 +1,9 @@
 use crate::cpu::*;
-use crate::gameboy::Gameboy;
+use crate::gameboy::*;
 use crate::registers::{Reg8::*, Reg16::*, SP};
 
 //  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
-const OP_CYCLES: [u8; 256] = [
+const OP_CYCLES: [MCycle; 256] = [
     1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, // 0
     1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1, // 1
     2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1, // 2
@@ -23,7 +23,7 @@ const OP_CYCLES: [u8; 256] = [
 ];
 
 //  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
-const CB_CYCLES: [u8; 256] = [
+const CB_CYCLES: [MCycle; 256] = [
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 1
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 2
@@ -43,7 +43,7 @@ const CB_CYCLES: [u8; 256] = [
 ];
 
 impl Cpu {
-    pub fn decode_exec(&mut self, gb: &mut Gameboy, opcode: u8) -> u8 {
+    pub fn decode_exec(&mut self, gb: &mut Gameboy, opcode: u8) -> MCycle {
         match opcode {
             // --- 8-bit operations
             // 8-bit loads
@@ -308,7 +308,7 @@ impl Cpu {
         OP_CYCLES[opcode as usize]
     }
 
-    fn decode_exec_cb(&mut self, gb: &mut Gameboy, opcode_cb: u8) -> u8 {
+    fn decode_exec_cb(&mut self, gb: &mut Gameboy, opcode_cb: u8) -> MCycle {
         match opcode_cb {
             // --- 8-bit operations
             // 8-bit arithmetic
