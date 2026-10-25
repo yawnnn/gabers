@@ -93,18 +93,22 @@ impl<T: PrimInt + OverflowingAdd + WrappingSub> NumTraitsExt for T {
 // TODO: const binary search
 pub struct ConstMap<K: Eq, V, const N: usize>([(K, V); N]);
 
-impl<K: Eq + Copy, V, const N: usize> ConstMap<K, V, N> {
+impl<K: Eq + Copy, V: Copy, const N: usize> ConstMap<K, V, N> {
     pub const fn new(map: [(K, V); N]) -> Self {
         //map.sort_by_key(|(k, _)| *k);
         ConstMap(map)
     }
 
-    pub fn get(&self, key: K) -> Option<&V> {
+    pub fn get(&self, key: K) -> Option<V> {
         // self.0
         //     .binary_search_by_key(key, |&(k, _)| k)
         //     .map(|idx| &self.0[idx].1)
         //     .ok()
-        self.0.iter().find(|(k, _)| *k == key).map(|(_, v)| v) // TODO: why is `map(|(_, v)| v)` not const?
+        self.0.iter().find(|(k, _)| *k == key).map(|(_, v)| v).copied() // TODO: why is `map(|(_, v)| v)` not const?
+    }
+
+    pub fn index(&self, idx: usize) -> V {
+        self.0[idx].1
     }
 }
 

@@ -19,7 +19,10 @@ use crate::gameboy::Gameboy;
 
 fn main() {
     env_logger::init();
-    let args = env::args().skip(1).collect::<Vec<_>>();
-    let mut gb = Gameboy::new(args.first().expect("Missing path to ROM file"));
+    let mut args = env::args().skip(1);
+    let rom = args.next().expect("Missing path to ROM file");
+    let bootrom = args.next();
+    let bootrom = bootrom.as_deref();
+    let mut gb = Gameboy::new(rom, bootrom);
     gb.main_loop();
 }

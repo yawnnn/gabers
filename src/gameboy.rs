@@ -73,8 +73,8 @@ pub struct Gameboy {
 }
 
 impl Gameboy {
-    pub fn new(cartridge_path: impl AsRef<Path>) -> Box<Self> {
-        let cartridge = Cartridge::new(cartridge_path.as_ref()).unwrap();
+    pub fn new(cartridge_path: impl AsRef<Path>, bootrom: Option<&str>) -> Box<Self> {
+        let cartridge = Cartridge::new(cartridge_path.as_ref(), bootrom).unwrap();
 
         let mut window = Window::new(
             &cartridge.title,

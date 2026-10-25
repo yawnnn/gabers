@@ -7,7 +7,6 @@ use crate::common::*;
 use crate::mmu::{eram_range, rom_range};
 
 const HEADER: Range<usize> = 0x0100..0x014F + 1;
-const ENTRY_POINT: usize = 0x0100;
 const NINTENDO_LOGO_RANGE: Range<usize> = 0x0104..0x0134;
 const ROM_TITLE_DMG: Range<usize> = 0x0134..0x0143 + 1;
 const CARTRIDGE_TYPE: usize = 0x0147;
@@ -85,14 +84,21 @@ const RAM_SIZES: ConstMap<u8, usize, 6> = ConstMap::new([
     (0x05, 64),
 ]);
 
+const BOOTROMS: ConstMap<&'static str, &'static [u8], 3> = ConstMap::new([
+    ("dmg0", include_bytes!("../bootroms/bin/dmg0.bin")),
+    ("dmg", include_bytes!("../bootroms/bin/dmg.bin")),
+    ("mgb", include_bytes!("../bootroms/bin/mgb.bin")),
+]);
+
 pub struct Cartridge {
     pub title: String,
     rom: Box<[u8]>,
     ram: Box<[u8]>,
+    bootrom: Option<&'static [u8]>,
 }
 
 impl Cartridge {
-    pub fn new(path: &Path) -> anyhow::Result<Self> {
+    pub fn new(path: &Path, bootrom: Option<&str>) -> anyhow::Result<Self> {
         let rom = fs::read(path)?.into_boxed_slice();
         if rom.len() < HEADER.end {
             return Err(anyhow!("Invalid rom length"));
@@ -114,15 +120,11 @@ impl Cartridge {
         debug!("Cartridge type {cartridge_type}");
         let _ = ROM_SIZES
             .get(rom[ROM_SIZE])
-            .copied()
             .map(|v| v * ROM_BANK_SIZE)
             .filter(|v| *v == rom.len())
             .context("Invalid rom size")?;
         let ram_size = if cartridge_type.contains("RAM") {
-            RAM_SIZES
-                .get(rom[RAM_SIZE])
-                .copied()
-                .context("Invalid RAM size")?
+            RAM_SIZES.get(rom[RAM_SIZE]).context("Invalid RAM size")?
         } else {
             0
         };
@@ -135,16 +137,31 @@ impl Cartridge {
             return Err(anyhow!("Invalid checksum"));
         }
 
+        let bootrom = bootrom
+            .and_then(|name| BOOTROMS.get(name))
+            .unwrap_or(BOOTROMS.index(0));
+
         Ok(Cartridge {
             title,
             rom,
             ram: Box::from(vec![0; ram_size]),
+            bootrom: Some(bootrom),
         })
+    }
+
+    pub fn unmap_bootrom(&mut self) {
+        self.bootrom = None;
     }
 
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            rom_range!() => self.rom[addr as usize - ROM_START],
+            rom_range!() => {
+                let idx = addr as usize - ROM_START;
+                self.bootrom
+                    .as_ref()
+                    .and_then(|bootrom| bootrom.get(idx).copied())
+                    .unwrap_or(self.rom[idx])
+            }
             eram_range!() => self.ram[addr as usize - RAM_START],
             _ => 0xFF,
         }
@@ -152,7 +169,7 @@ impl Cartridge {
 
     pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
-            rom_range!() => self.rom[addr as usize - ROM_START] = val,
+            rom_range!() => (),
             eram_range!() => self.ram[addr as usize - RAM_START] = val,
             _ => (),
         }
