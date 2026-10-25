@@ -99,12 +99,12 @@ impl<K: Eq + Copy, V, const N: usize> ConstMap<K, V, N> {
         ConstMap(map)
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
+    pub fn get(&self, key: K) -> Option<&V> {
         // self.0
         //     .binary_search_by_key(key, |&(k, _)| k)
         //     .map(|idx| &self.0[idx].1)
         //     .ok()
-        self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v) // TODO: why is `map(|(_, v)| v)` not const?
+        self.0.iter().find(|(k, _)| *k == key).map(|(_, v)| v) // TODO: why is `map(|(_, v)| v)` not const?
     }
 }
 

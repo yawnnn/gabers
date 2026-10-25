@@ -1,53 +1,29 @@
-#![allow(unused)]
-
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use log::debug;
 use std::ops::Range;
 use std::{fs, path::Path};
 
 use crate::common::*;
+use crate::mmu::{eram_range, rom_range};
 
 const HEADER: Range<usize> = 0x0100..0x014F + 1;
 const ENTRY_POINT: usize = 0x0100;
-const NINTENDO_LOGO_POS: Range<usize> = 0x0104..0x0134;
+const NINTENDO_LOGO_RANGE: Range<usize> = 0x0104..0x0134;
 const ROM_TITLE_DMG: Range<usize> = 0x0134..0x0143 + 1;
-const ROM_TITLE_CGB: Range<usize> = 0x0134..0x013E + 1;
-const MANUFACTURER_CODE: Range<usize> = 0x13F..0x0142 + 1;
-const CGB_FLAG: usize = 0x0143;
-const NEW_LICENSE_CODE: Range<usize> = 0x0144..0x145 + 1;
-const SGB_FLAG: usize = 0x0146;
 const CARTRIDGE_TYPE: usize = 0x0147;
 const ROM_SIZE: usize = 0x0148;
 const RAM_SIZE: usize = 0x0149;
-const DESTINATION_CODE: usize = 0x014A;
-const OLD_LICENSE_CODE: usize = 0x014B;
-const MASK_ROM_VERSION_NUM: usize = 0x014C;
 const HEADER_CHECKSUM_POS: usize = 0x014D;
 const HEADER_CHECKSUM_RANGE: Range<usize> = 0x0134..0x014C + 1;
-const GLOBAL_CHECKSUM: Range<usize> = 0x014E..0x014F + 1;
+
+const ROM_START: usize = *rom_range!().start();
+const RAM_START: usize = *eram_range!().start();
 
 const NINTENDO_LOGO: [u8; 48] = [
     0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
     0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
     0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
 ];
-
-const ROM_BANKS: ConstMap<u8, usize, 12> = ConstMap::new([
-    (0x00, 2),
-    (0x01, 4),
-    (0x02, 8),
-    (0x03, 16),
-    (0x04, 32),
-    (0x05, 64),
-    (0x06, 128),
-    (0x07, 256),
-    (0x08, 512),
-    (0x52, 72),
-    (0x53, 80),
-    (0x54, 96),
-]);
-
-const ROM_BANK_SIZE: usize = 0x4000;
 
 const CARTRIDGE_TYPES: ConstMap<u8, &str, 31> = ConstMap::new([
     (0x00, "ROM ONLY"),
@@ -83,7 +59,24 @@ const CARTRIDGE_TYPES: ConstMap<u8, &str, 31> = ConstMap::new([
     (0xff, "HuC1+RAM+BATTERY"),
 ]);
 
-const RAM_BANKS: ConstMap<u8, usize, 6> = ConstMap::new([
+const ROM_SIZES: ConstMap<u8, usize, 12> = ConstMap::new([
+    (0x00, 2),
+    (0x01, 4),
+    (0x02, 8),
+    (0x03, 16),
+    (0x04, 32),
+    (0x05, 64),
+    (0x06, 128),
+    (0x07, 256),
+    (0x08, 512),
+    (0x52, 72),
+    (0x53, 80),
+    (0x54, 96),
+]);
+
+const ROM_BANK_SIZE: usize = 0x4000;
+
+const RAM_SIZES: ConstMap<u8, usize, 6> = ConstMap::new([
     (0x00, 0),
     (0x01, 0),
     (0x02, 8),
@@ -94,60 +87,74 @@ const RAM_BANKS: ConstMap<u8, usize, 6> = ConstMap::new([
 
 pub struct Cartridge {
     pub title: String,
-    rom: Vec<u8>,
-    rom_size: usize,
-    ram_size: usize,
-    rom_bank: usize,
+    rom: Box<[u8]>,
+    ram: Box<[u8]>,
 }
 
 impl Cartridge {
-    pub fn new(path: &Path) -> Self {
-        let rom = fs::read(path).unwrap();
-        assert!(rom.len() >= HEADER.end);
-        assert!(rom[NINTENDO_LOGO_POS] == NINTENDO_LOGO);
-        let rom_size = *ROM_BANKS.get(&rom[ROM_SIZE]).unwrap() * ROM_BANK_SIZE;
-        assert!(rom.len() <= rom_size);
-        let title_range = if rom[CGB_FLAG] & 0x80 != 0 {
-            ROM_TITLE_CGB
-        } else {
-            ROM_TITLE_DMG
-        };
+    pub fn new(path: &Path) -> anyhow::Result<Self> {
+        let rom = fs::read(path)?.into_boxed_slice();
+        if rom.len() < HEADER.end {
+            return Err(anyhow!("Invalid rom length"));
+        }
+        if rom[NINTENDO_LOGO_RANGE] != NINTENDO_LOGO {
+            return Err(anyhow!("Invalid Nintendo logo"));
+        }
         let title = String::from_utf8(
-            rom[title_range]
+            rom[ROM_TITLE_DMG]
                 .iter()
                 .take_while(|&b| *b != 0)
                 .copied()
                 .collect(),
-        )
-        .unwrap();
+        )?;
         debug!("Cartridge title {title}");
-        let cartridge_type = CARTRIDGE_TYPES.get(&rom[CARTRIDGE_TYPE]).unwrap();
+        let cartridge_type = CARTRIDGE_TYPES
+            .get(rom[CARTRIDGE_TYPE])
+            .context("Invalid cartridge type")?;
         debug!("Cartridge type {cartridge_type}");
+        let _ = ROM_SIZES
+            .get(rom[ROM_SIZE])
+            .copied()
+            .map(|v| v * ROM_BANK_SIZE)
+            .filter(|v| *v == rom.len())
+            .context("Invalid rom size")?;
         let ram_size = if cartridge_type.contains("RAM") {
-            RAM_BANKS.get(&rom[RAM_SIZE]).copied().unwrap()
+            RAM_SIZES
+                .get(rom[RAM_SIZE])
+                .copied()
+                .context("Invalid RAM size")?
         } else {
             0
         };
         debug!("Ram size: {ram_size}");
+
         let checksum: u8 = rom[HEADER_CHECKSUM_RANGE]
             .iter()
             .fold(0, |acc, b| acc.wrapping_sub(*b).wrapping_sub(1));
-        assert!(checksum == rom[HEADER_CHECKSUM_POS]);
+        if checksum != rom[HEADER_CHECKSUM_POS] {
+            return Err(anyhow!("Invalid checksum"));
+        }
 
-        Cartridge {
+        Ok(Cartridge {
             title,
             rom,
-            rom_size,
-            ram_size,
-            rom_bank: 0,
-        }
+            ram: Box::from(vec![0; ram_size]),
+        })
     }
 
     pub fn read(&self, addr: u16) -> u8 {
-        todo!()
+        match addr {
+            rom_range!() => self.rom[addr as usize - ROM_START],
+            eram_range!() => self.ram[addr as usize - RAM_START],
+            _ => 0xFF,
+        }
     }
 
     pub fn write(&mut self, addr: u16, val: u8) {
-        todo!()
+        match addr {
+            rom_range!() => self.rom[addr as usize - ROM_START] = val,
+            eram_range!() => self.ram[addr as usize - RAM_START] = val,
+            _ => (),
+        }
     }
 }

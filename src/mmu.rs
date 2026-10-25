@@ -6,6 +6,7 @@ macro_rules! rom_range {
         0x0000..=0x7FFF
     };
 }
+pub(crate) use rom_range;
 /// 8 KiB Video RAM (VRAM) - In CGB mode, switchable bank 0/1 - blocks
 macro_rules! tiles_range {
     () => {
@@ -26,6 +27,7 @@ macro_rules! eram_range {
         0xA000..=0xBFFF
     };
 }
+pub(crate) use eram_range;
 /// 4 * 2 KiB Work RAM (WRAM)
 macro_rules! wram_range {
     () => {
