@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::cartridge::Cartridge;
 use crate::common::*;
 use crate::cpu::Cpu;
-use crate::interrupt::{InterruptFlags, Interrupts};
+use crate::interrupt::*;
 use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
 use crate::ppu::*;
@@ -150,7 +150,7 @@ impl Gameboy {
             let mut it = dma_transfer.take(cycles as usize);
             for dma_transfer in &mut it {
                 let val = self.read8(dma_transfer.addr);
-                self.ppu.write8_oam_transfer(dma_transfer.pos, val); // ignore r/w blocks
+                self.ppu.write8_oam_unchecked(dma_transfer.pos, val);
             }
             self.dma_transfer = it.next();
         }

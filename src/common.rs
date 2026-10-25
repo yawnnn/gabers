@@ -128,9 +128,9 @@ pub fn boxed_3d<T: Default + Copy, const W: usize, const H: usize, const D: usiz
 pub trait Array2D<const W: usize, const H: usize> {
     type Item;
 
-    fn get_2d(&self, idx: impl Into<usize>) -> &Self::Item;
+    fn get_1to2(&self, idx: impl Into<usize>) -> &Self::Item;
 
-    fn get_mut_2d(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
+    fn get_mut_1to2(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
 
     fn idx_1to2(idx: usize) -> (usize, usize) {
         if idx >= W * H {
@@ -147,20 +147,20 @@ pub trait Array2D<const W: usize, const H: usize> {
         x * H + y
     }
 
-    fn set_2d(&mut self, idx: impl Into<usize>, val: Self::Item) {
-        *self.get_mut_2d(idx) = val;
+    fn set_1to2(&mut self, idx: impl Into<usize>, val: Self::Item) {
+        *self.get_mut_1to2(idx) = val;
     }
 }
 
 impl<T, const W: usize, const H: usize> Array2D<W, H> for [[T; H]; W] {
     type Item = T;
 
-    fn get_2d(&self, idx: impl Into<usize>) -> &T {
+    fn get_1to2(&self, idx: impl Into<usize>) -> &T {
         let (x, y) = Self::idx_1to2(idx.into());
         &self[x][y]
     }
 
-    fn get_mut_2d(&mut self, idx: impl Into<usize>) -> &mut T {
+    fn get_mut_1to2(&mut self, idx: impl Into<usize>) -> &mut T {
         let (x, y) = Self::idx_1to2(idx.into());
         &mut self[x][y]
     }
@@ -169,9 +169,9 @@ impl<T, const W: usize, const H: usize> Array2D<W, H> for [[T; H]; W] {
 pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     type Item;
 
-    fn get_3d(&self, idx: impl Into<usize>) -> &Self::Item;
+    fn get_1to3(&self, idx: impl Into<usize>) -> &Self::Item;
 
-    fn get_mut_3d(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
+    fn get_mut_1to3(&mut self, idx: impl Into<usize>) -> &mut Self::Item;
 
     fn idx_1to3(idx: usize) -> (usize, usize, usize) {
         if idx >= W * H * D {
@@ -193,20 +193,20 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
         x * H * D + y * D + z
     }
 
-    fn set_3d(&mut self, idx: impl Into<usize>, val: Self::Item) {
-        *self.get_mut_3d(idx) = val;
+    fn set_1to3(&mut self, idx: impl Into<usize>, val: Self::Item) {
+        *self.get_mut_1to3(idx) = val;
     }
 }
 
 impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D> for [[[T; D]; H]; W] {
     type Item = T;
 
-    fn get_3d(&self, idx: impl Into<usize>) -> &T {
+    fn get_1to3(&self, idx: impl Into<usize>) -> &T {
         let (x, y, z) = Self::idx_1to3(idx.into());
         &self[x][y][z]
     }
 
-    fn get_mut_3d(&mut self, idx: impl Into<usize>) -> &mut T {
+    fn get_mut_1to3(&mut self, idx: impl Into<usize>) -> &mut T {
         let (x, y, z) = Self::idx_1to3(idx.into());
         &mut self[x][y][z]
     }

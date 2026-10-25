@@ -1,4 +1,4 @@
-use crate::interrupt::{InterruptFlags, Interrupts};
+use crate::interrupt::*;
 
 #[derive(Clone)]
 #[rustfmt::skip]
