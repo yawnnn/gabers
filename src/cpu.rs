@@ -216,7 +216,7 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_sra(&mut self, value: u8) -> u8 {
-        let res = (value << 1) | (value & 0x80);
+        let res = (value >> 1) | (value & 0x80);
         let new_cf = value & 0x01;
 
         self.regs.set(Flag::C, new_cf != 0);
@@ -227,7 +227,7 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_srl(&mut self, value: u8) -> u8 {
-        let res = value << 1;
+        let res = value >> 1;
         let new_cf = value & 0x01;
 
         self.regs.set(Flag::C, new_cf != 0);
@@ -236,16 +236,13 @@ impl Cpu {
     }
 
     pub fn stack_push(&mut self, gb: &mut Gameboy, value: u16) {
-        let sp = self.regs.sp;
-        gb.write16(sp, value);
-        self.regs.sp = sp.wrapping_add(2);
+        self.regs.sp = self.regs.sp.wrapping_sub(2);
+        gb.write16(self.regs.sp, value);
     }
 
     pub fn stack_pop(&mut self, gb: &mut Gameboy) -> u16 {
-        let sp = self.regs.sp;
-        let res = gb.read16(sp);
-        self.regs.sp = sp.wrapping_sub(2);
-
+        let res = gb.read16(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(2);
         res
     }
 

@@ -179,7 +179,7 @@ impl Cpu {
         self.regs.set(Flag::H, half_carry);
         self.regs.set(Flag::C, carry);
 
-        self.write16(gb, Reg16::HL, res);
+        self.write16(gb, SP, res);
     }
 
     // CP A, r8
@@ -266,7 +266,8 @@ impl Cpu {
     {
         let value = self.read8(gb, src);
         let cf = self.regs.get(Flag::C);
-        self.alu_sub(value, cf as u8);
+        let res = self.alu_sub(value, cf as u8);
+        self.write8(gb, Reg8::A, res);
     }
 
     // SUB A, r8
@@ -279,7 +280,8 @@ impl Cpu {
         Self: In8<I>,
     {
         let value = self.read8(gb, src);
-        self.alu_sub(value, 0);
+        let res = self.alu_sub(value, 0);
+        self.write8(gb, Reg8::A, res);
     }
 
     /*
