@@ -48,14 +48,14 @@ impl Cpu {
     // Z N H C
     // - - - -
     pub fn load8_b_b(&mut self, _: &mut Gameboy) {
-        todo!() // TODO: breakpoint
+        // TODO: breakpoint
     }
 
     // LD D, D
     // Z N H C
     // - - - -
     pub fn load8_d_d(&mut self, _: &mut Gameboy) {
-        todo!() // TODO: debug
+        // TODO: debug
     }
 
     // LD [n16], SP

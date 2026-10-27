@@ -137,10 +137,10 @@ impl Gameboy {
             echo_ram_range!() => self.read8(addr - 0x2000),
             oam_range!() => self.ppu.read8(addr),
             joypad_addr!() => self.joypad.read8(),
-            serial_range!() => todo!(),
+            serial_range!() => 0xFF, // TODO
             timer_range!() => self.timer.read8(addr),
             if_addr!() => *self.inter.flags,
-            audio_range!() => todo!(),
+            audio_range!() => 0xFF, // TODO
             lcd_range!() => self.ppu.read8(addr),
             dma_addr!() => 0xFF,
             palette_range!() => self.ppu.read8(addr),
@@ -166,10 +166,10 @@ impl Gameboy {
             echo_ram_range!() => self.write8(addr - 0x2000, val),
             oam_range!() => self.ppu.write8(addr, val),
             joypad_addr!() => self.joypad.write8(val),
-            serial_range!() => todo!(),
+            serial_range!() => (), // TODO
             timer_range!() => self.timer.write8(&mut self.inter, addr, val),
             if_addr!() => *self.inter.flags = val,
-            audio_range!() => todo!(),
+            audio_range!() => (), // TODO
             lcd_range!() => self.ppu.write8(addr, val),
             dma_addr!() => self.start_dma_transfer(val),
             palette_range!() => self.ppu.write8(addr, val),
