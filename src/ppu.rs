@@ -19,25 +19,25 @@ const MAX_OBJS_X_LINE: usize = 10;
 fn color_id(lo: u8, hi: u8, bit: usize) -> u8 {
     let lo_bit = (lo >> bit) & 1;
     let hi_bit = (hi >> bit) & 1;
-    hi_bit << 1 | lo_bit
+    lo_bit << 1 | hi_bit    // they flip
 }
 
 #[derive(Default, Clone, Copy, Debug)]
 pub enum GrayScale {
     #[default]
     Black = 0x00,
-    LGray = 0x60,
-    DGray = 0xC0,
+    DGray = 0x60,
+    LGray = 0xC0,
     White = 0xFF,
 }
 
 impl From<u8> for GrayScale {
     fn from(shade: u8) -> Self {
         match shade & 0b11 {
-            0b00 => GrayScale::Black,
+            0b00 => GrayScale::White,
             0b01 => GrayScale::LGray,
             0b10 => GrayScale::DGray,
-            0b11 => GrayScale::White,
+            0b11 => GrayScale::Black,
             _ => unreachable!(),
         }
     }
@@ -173,7 +173,7 @@ impl Object {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 enum Mode {
     HBlank = 0,
     VBlank = 1,

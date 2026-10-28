@@ -21,10 +21,10 @@ pub enum Reg16 {
 impl Reg16 {
     fn to_le_r8s(self) -> [Reg8; 2] {
         match self {
-            Reg16::AF => [Reg8::A, Reg8::F],
-            Reg16::BC => [Reg8::B, Reg8::C],
-            Reg16::DE => [Reg8::D, Reg8::E],
-            Reg16::HL => [Reg8::H, Reg8::L],
+            Reg16::AF => [Reg8::F, Reg8::A],
+            Reg16::BC => [Reg8::C, Reg8::B],
+            Reg16::DE => [Reg8::E, Reg8::D],
+            Reg16::HL => [Reg8::L, Reg8::H],
         }
     }
 }
