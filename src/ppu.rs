@@ -412,8 +412,8 @@ impl Ppu {
             return;
         }
 
-        let scanline_dots = (self.dots_count % Mode::SCANLINE_END) + cycles as u32;
-        self.dots_count += cycles as u32;
+        let scanline_dots = (self.dots_count % Mode::SCANLINE_END) + cycles;
+        self.dots_count += cycles;
 
         match self.mode {
             Mode::OamScan => {

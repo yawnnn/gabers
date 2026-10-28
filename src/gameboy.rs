@@ -17,7 +17,7 @@ const TARGET_FPS: usize = 60;
 const TCYCLES_PER_FRAME: TCycle = (SYSTEM_CLOCK as f64 / TARGET_FPS as f64).round() as TCycle;
 
 pub type MCycle = u8;
-pub type TCycle = u16;
+pub type TCycle = u32;
 
 pub trait ToTCycle {
     fn to_tcycle(self) -> TCycle;
@@ -172,7 +172,8 @@ impl Gameboy {
         while self.handle_input() {
             let mut cycles = 0;
             while cycles < TCYCLES_PER_FRAME {
-                cycles += self.step(&mut cpu);
+                let stepped = self.step(&mut cpu);
+                cycles = cycles.wrapping_add(stepped);
             }
             self.draw();
         }
