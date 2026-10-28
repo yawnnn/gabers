@@ -13,19 +13,13 @@ pub enum JoypadKey {
     Start  = 1 << 7,
 }
 
+#[derive(Default)]
 pub struct Joypad {
     state: u8,
     select: u8,
 }
 
 impl Joypad {
-    pub fn new() -> Self {
-        Joypad {
-            state: 0xFF,
-            select: 0x00,
-        }
-    }
-
     pub fn press(&mut self, inter: &mut Interrupts, key: JoypadKey) {
         self.state &= !(key as u8);
         inter.raise(InterruptFlags::JOYPAD);
@@ -51,7 +45,7 @@ impl Joypad {
         if self.use_buttons() {
             res &= self.state >> 4;
         }
-        0x0C | (self.select & 0x30) | res
+        0xC0 | (self.select & 0x30) | res
     }
 
     pub fn write8(&mut self, val: u8) {

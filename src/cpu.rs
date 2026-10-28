@@ -35,9 +35,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub fn new(has_bootrom: bool, cartridge_checksum: u8) -> Self {
         Cpu {
-            regs: Default::default(),
+            regs: Registers::new(has_bootrom, cartridge_checksum),
             ime: false,
             low_power_mode: false,
             halt_bug: false,

@@ -92,6 +92,7 @@ const BOOTROMS: ConstMap<&'static str, &'static [u8], 3> = ConstMap::new([
 
 pub struct Cartridge {
     pub title: String,
+    pub checksum: u8,
     rom: Box<[u8]>,
     ram: Box<[u8]>,
     bootrom: Option<&'static [u8]>,
@@ -106,6 +107,7 @@ impl Cartridge {
         if rom[NINTENDO_LOGO_RANGE] != NINTENDO_LOGO {
             return Err(anyhow!("Invalid Nintendo logo"));
         }
+
         let title = String::from_utf8(
             rom[ROM_TITLE_DMG]
                 .iter()
@@ -113,11 +115,13 @@ impl Cartridge {
                 .copied()
                 .collect(),
         )?;
-        debug!("Cartridge title {title}");
+        debug!("Cartridge title: {title}");
+
         let cartridge_type = CARTRIDGE_TYPES
             .get(rom[CARTRIDGE_TYPE])
             .context("Invalid cartridge type")?;
-        debug!("Cartridge type {cartridge_type}");
+        debug!("Cartridge type: {cartridge_type}");
+
         let _ = ROM_SIZES
             .get(rom[ROM_SIZE])
             .map(|v| v * ROM_BANK_SIZE)
@@ -137,15 +141,14 @@ impl Cartridge {
             return Err(anyhow!("Invalid checksum"));
         }
 
-        let bootrom = bootrom
-            .and_then(|name| BOOTROMS.get(name))
-            .unwrap_or(BOOTROMS.index(0));
+        let bootrom = bootrom.and_then(|name| BOOTROMS.get(name));
 
         Ok(Cartridge {
             title,
             rom,
             ram: Box::from(vec![0; ram_size]),
-            bootrom: Some(bootrom),
+            bootrom,
+            checksum,
         })
     }
 
@@ -153,7 +156,7 @@ impl Cartridge {
         self.bootrom = None;
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
+    pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             rom_range!() => {
                 let idx = addr as usize - ROM_START;
@@ -167,7 +170,7 @@ impl Cartridge {
         }
     }
 
-    pub fn write(&mut self, addr: u16, val: u8) {
+    pub fn write8(&mut self, addr: u16, val: u8) {
         match addr {
             rom_range!() => (),
             eram_range!() => self.ram[addr as usize - RAM_START] = val,

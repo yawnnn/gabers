@@ -11,7 +11,7 @@ impl Interrupts {
     pub fn new() -> Self {
         Interrupts {
             enable: 0,
-            flags: InterruptFlags(0),
+            flags: InterruptFlags(0xE1),
         }
     }
 

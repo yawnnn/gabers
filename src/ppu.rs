@@ -19,7 +19,7 @@ const MAX_OBJS_X_LINE: usize = 10;
 fn color_id(lo: u8, hi: u8, bit: usize) -> u8 {
     let lo_bit = (lo >> bit) & 1;
     let hi_bit = (hi >> bit) & 1;
-    lo_bit << 1 | hi_bit    // they flip
+    lo_bit << 1 | hi_bit // they flip
 }
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -54,6 +54,10 @@ impl GrayScale {
 struct Palette(u8);
 
 impl Palette {
+    fn new(val: u8) -> Self {
+        Palette(val)
+    }
+
     fn grayscale(self, color_id: u8) -> GrayScale {
         let color_shade = self.0 >> (color_id * 2) & 0b11;
         GrayScale::from(color_shade)
@@ -87,6 +91,10 @@ impl LcdControl {
     const WINDOW_TILEMAP_2: u8 = 1 << 6; // LCDC.6
     const LCD_ENABLE: u8       = 1 << 7; // LCDC.7
 
+    fn new() -> Self {
+        LcdControl(0x91)
+    }
+
     fn get(&self, bit: u8) -> bool {
         (self.0 & bit) != 0
     }
@@ -119,6 +127,10 @@ impl LcdStatus {
     const INT_OAM_SCAN: u8  = 1 << 4;
     const INT_LYC_EQ_LC: u8 = 1 << 5;
     const WRITABLE_MASK: u8 = Self::INT_HBLANK | Self::INT_VBLANK | Self::INT_OAM_SCAN | Self::INT_LYC_EQ_LC;
+
+    fn new() -> Self {
+        LcdStatus { val: 0x85, line_high: false }
+    }
 
     fn read8(&self, lyc_eq_lc: bool, mode: Mode) -> u8 {
         let lyc_bit = if lyc_eq_lc { Self::LYC_EQ_LC } else { 0 };
@@ -225,15 +237,15 @@ impl Ppu {
             mode: Mode::default(),
             dots_count: 0,
             bg_is_used: boxed_1d(),
-            lcdc: LcdControl::default(),
-            stat: LcdStatus::default(),
+            lcdc: LcdControl::new(),
+            stat: LcdStatus::new(),
             current_y: 0,
             y_cmp: 0,
             scroll_x: 0,
             scroll_y: 0,
             window_x: 0,
             window_y: 0,
-            bg_palette: Palette::default(),
+            bg_palette: Palette::new(0xFC),
             obj_palettes: Default::default(),
         }
     }
@@ -280,7 +292,7 @@ impl Ppu {
         [lo, hi]
     }
 
-    fn render_bg_tile(&mut self, tile_id: u16, start_x: u8, y: u8, window_x: i16)  {
+    fn render_bg_tile(&mut self, tile_id: u16, start_x: u8, y: u8, window_x: i16) {
         let start_tile_x = start_x as usize % TILE_SIDE;
         let tile_y = y % TILE_SIDE as u8;
         let [lo, hi] = self.get_tile_dword(tile_id, tile_y);

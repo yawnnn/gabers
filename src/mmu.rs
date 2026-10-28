@@ -1,4 +1,4 @@
-use crate::{gameboy::Gameboy};
+use crate::gameboy::Gameboy;
 
 /// 16 KiB ROM bank 00 (From cartridge, usually a fixed bank) + 16 KiB ROM Bank 01–NN (From cartridge, switchable bank via mapper (if any))
 macro_rules! rom_range {
@@ -129,10 +129,10 @@ impl Gameboy {
         }
 
         match addr {
-            rom_range!() => self.cartridge.read(addr),
+            rom_range!() => self.cartridge.read8(addr),
             tiles_range!() => self.ppu.read8(addr),
             tilemaps_range!() => self.ppu.read8(addr),
-            eram_range!() => self.cartridge.read(addr),
+            eram_range!() => self.cartridge.read8(addr),
             wram_range!() => self.wram[addr as usize - wram_range!().start()],
             echo_ram_range!() => self.read8(addr - 0x2000),
             oam_range!() => self.ppu.read8(addr),
@@ -158,10 +158,10 @@ impl Gameboy {
         }
 
         match addr {
-            rom_range!() => self.cartridge.write(addr, val),
+            rom_range!() => self.cartridge.write8(addr, val),
             tiles_range!() => self.ppu.write8(addr, val),
             tilemaps_range!() => self.ppu.write8(addr, val),
-            eram_range!() => self.cartridge.write(addr, val),
+            eram_range!() => self.cartridge.write8(addr, val),
             wram_range!() => self.wram[addr as usize - wram_range!().start()] = val,
             echo_ram_range!() => self.write8(addr - 0x2000, val),
             oam_range!() => self.ppu.write8(addr, val),

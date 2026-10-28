@@ -104,9 +104,14 @@ impl<K: Eq + Copy, V: Copy, const N: usize> ConstMap<K, V, N> {
         //     .binary_search_by_key(key, |&(k, _)| k)
         //     .map(|idx| &self.0[idx].1)
         //     .ok()
-        self.0.iter().find(|(k, _)| *k == key).map(|(_, v)| v).copied() // TODO: why is `map(|(_, v)| v)` not const?
+        self.0
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v)
+            .copied() // TODO: why is `map(|(_, v)| v)` not const?
     }
 
+    #[allow(unused)]
     pub fn index(&self, idx: usize) -> V {
         self.0[idx].1
     }

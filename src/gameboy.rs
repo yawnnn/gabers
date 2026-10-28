@@ -67,6 +67,7 @@ pub struct Gameboy {
     pub wram: Box<[u8; wram_range!().span()]>,
     pub hram: Box<[u8; hram_range!().span()]>,
     dma_transfer: Option<DmaTransfer>,
+    has_bootrom: bool,
 
     window: Window,
     screen: Box<[u32; SCREEN_W * SCREEN_H]>,
@@ -89,13 +90,14 @@ impl Gameboy {
             cartridge,
             ppu: Ppu::new(),
             inter: Interrupts::new(),
-            joypad: Joypad::new(),
+            joypad: Joypad::default(),
             timer: Timer::new(),
             wram: boxed_1d(),
             hram: boxed_1d(),
             window,
             screen: boxed_1d(),
             dma_transfer: None,
+            has_bootrom: bootrom.is_some(),
         })
     }
 
@@ -167,7 +169,7 @@ impl Gameboy {
     }
 
     pub fn main_loop(&mut self) {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(self.has_bootrom, self.cartridge.checksum);
 
         while self.handle_input() {
             let mut cycles = 0;

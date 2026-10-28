@@ -73,6 +73,29 @@ pub struct Registers {
 }
 
 impl Registers {
+    pub fn new(has_bootrom: bool, cartridge_checksum: u8) -> Self {
+        let checksum_cmp = if cartridge_checksum == 0 {
+            0
+        } else {
+            Flag::C as u8 | Flag::H as u8
+        };
+        match has_bootrom {
+            true => Registers::default(),
+            _ => Registers {
+                pc: 0x100,
+                sp: 0xFFFE,
+                a: 0x01,
+                b: 0x00,
+                c: 0x13,
+                d: 0x00,
+                e: 0xD8,
+                f: Flag::Z as u8 | checksum_cmp,
+                h: 0x01,
+                l: 0x4D,
+            },
+        }
+    }
+
     pub fn read8(&self, reg: Reg8) -> u8 {
         match reg {
             Reg8::A => self.a,
