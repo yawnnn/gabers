@@ -12,6 +12,10 @@ use crate::timer::Timer;
 
 pub const SCREEN_W: usize = 160;
 pub const SCREEN_H: usize = 144;
+const SCREEN_SCALE: usize = 4;
+const SCREEN_SCALE_1D: usize = SCREEN_SCALE.isqrt();
+const SCALED_SCREEN_W: usize = SCREEN_W * SCREEN_SCALE_1D;
+const SCALED_SCREEN_H: usize = SCREEN_H * SCREEN_SCALE_1D;
 pub const SYSTEM_CLOCK: usize = 4_194_304; // TCycles per second
 const TARGET_FPS: usize = 60;
 const TCYCLES_PER_FRAME: TCycle = (SYSTEM_CLOCK as f64 / TARGET_FPS as f64).round() as TCycle;
@@ -70,7 +74,7 @@ pub struct Gameboy {
     has_bootrom: bool,
 
     window: Window,
-    screen: Box<[u32; SCREEN_W * SCREEN_H]>,
+    screen: Box<[u32; SCREEN_W * SCREEN_H * SCREEN_SCALE]>,
 }
 
 impl Gameboy {
@@ -79,8 +83,8 @@ impl Gameboy {
 
         let mut window = Window::new(
             &cartridge.title,
-            SCREEN_W,
-            SCREEN_H,
+            SCREEN_W * SCREEN_SCALE,
+            SCREEN_H * SCREEN_SCALE,
             WindowOptions::default(),
         )
         .unwrap();
@@ -104,10 +108,23 @@ impl Gameboy {
     fn draw(&mut self) {
         for (i, rgb) in self.ppu.buf.iter().enumerate() {
             let [r, g, b] = *rgb;
-            self.screen[i] = u32::from_le_bytes([r, g, b, 0xFF]);
+            let px = u32::from_le_bytes([r, g, b, 0xFF]);
+
+            let scaled_x = (i % SCREEN_W) * SCREEN_SCALE_1D;
+            let scaled_y = (i / SCREEN_W) * SCREEN_SCALE_1D;
+
+            for dy in 0..SCREEN_SCALE_1D {
+                for dx in 0..SCREEN_SCALE_1D {
+                    let screen_x = scaled_x + dx;
+                    let screen_y = scaled_y + dy;
+                    let screen_idx = screen_y * SCALED_SCREEN_W + screen_x;
+                    self.screen[screen_idx] = px;
+                }
+            }
         }
+
         self.window
-            .update_with_buffer(self.screen.as_ref(), SCREEN_W, SCREEN_H)
+            .update_with_buffer(self.screen.as_ref(), SCALED_SCREEN_W, SCALED_SCREEN_H)
             .unwrap();
     }
 
