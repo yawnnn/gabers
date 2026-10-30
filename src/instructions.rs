@@ -201,12 +201,12 @@ impl Cpu {
         Self: Io8<Io>,
     {
         let value = self.read8(gb, io);
-        let res = value.wrapping_sub(1);
+        let (res, carry) = value.half_overflowing_sub(1);
         self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, true);
-        self.regs.set(Flag::H, res & 0xF == 0);
+        self.regs.set(Flag::H, carry);
     }
 
     // DEC r16
