@@ -100,13 +100,13 @@ pub fn boxed_1d<T: Default + Copy, const N: usize>() -> Box<[T; N]> {
     Box::new([T::default(); N])
 }
 
-pub fn boxed_2d<T: Default + Copy, const W: usize, const H: usize>() -> Box<[[T; H]; W]> {
-    Box::new([[T::default(); H]; W])
+pub fn boxed_2d<T: Default + Copy, const W: usize, const H: usize>() -> Box<[[T; W]; H]> {
+    Box::new([[T::default(); W]; H])
 }
 
 pub fn boxed_3d<T: Default + Copy, const W: usize, const H: usize, const D: usize>()
--> Box<[[[T; D]; H]; W]> {
-    Box::new([[[T::default(); D]; H]; W])
+-> Box<[[[T; W]; H]; D]> {
+    Box::new([[[T::default(); W]; H]; D])
 }
 
 pub trait Array2D<const W: usize, const H: usize> {
@@ -118,17 +118,17 @@ pub trait Array2D<const W: usize, const H: usize> {
 
     fn idx_1to2(idx: usize) -> (usize, usize) {
         if idx >= W * H {
-            panic!("Index {idx} out of bounds for array {W}x{H}");
+            panic!("Index {idx} out of bounds for array {W};{H}");
         }
-        (idx / H, idx % H)
+        (idx % W, idx / W)
     }
 
     #[allow(unused)]
     fn idx_2to1((x, y): (usize, usize)) -> usize {
         if x >= W || y >= H {
-            panic!("Index {x}x{y} out of bounds for array {W}x{H}");
+            panic!("Index {x};{y} out of bounds for array {W};{H}");
         }
-        x * H + y
+        x + y * W
     }
 
     fn set_1to2(&mut self, idx: impl Into<usize>, val: Self::Item) {
@@ -136,17 +136,17 @@ pub trait Array2D<const W: usize, const H: usize> {
     }
 }
 
-impl<T, const W: usize, const H: usize> Array2D<W, H> for [[T; H]; W] {
+impl<T, const W: usize, const H: usize> Array2D<W, H> for [[T; W]; H] {
     type Item = T;
 
     fn get_1to2(&self, idx: impl Into<usize>) -> &T {
         let (x, y) = Self::idx_1to2(idx.into());
-        &self[x][y]
+        &self[y][x]
     }
 
     fn get_mut_1to2(&mut self, idx: impl Into<usize>) -> &mut T {
         let (x, y) = Self::idx_1to2(idx.into());
-        &mut self[x][y]
+        &mut self[y][x]
     }
 }
 
@@ -159,12 +159,12 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
 
     fn idx_1to3(idx: usize) -> (usize, usize, usize) {
         if idx >= W * H * D {
-            panic!("Index {idx} out of bounds for array {W}x{H}x{D}");
+            panic!("Index {idx} out of bounds for array {W};{H};{D}");
         }
-        let x = idx / (H * D);
-        let rem = idx % (H * D);
-        let y = rem / D;
-        let z = rem % D;
+        let z = idx / (W * H);
+        let rem = idx % (W * H);
+        let y = rem / W;
+        let x = rem % W;
 
         (x, y, z)
     }
@@ -172,9 +172,9 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     #[allow(unused)]
     fn idx_3to1((x, y, z): (usize, usize, usize)) -> usize {
         if x >= W || y >= H || z >= D {
-            panic!("Index {x}x{y}x{z} out of bounds for array {W}x{H}x{D}");
+            panic!("Index {x};{y};{z} out of bounds for array {W};{H};{D}");
         }
-        x * H * D + y * D + z
+        x + y * W + z * W * H
     }
 
     fn set_1to3(&mut self, idx: impl Into<usize>, val: Self::Item) {
@@ -182,16 +182,16 @@ pub trait Array3D<const W: usize, const H: usize, const D: usize> {
     }
 }
 
-impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D> for [[[T; D]; H]; W] {
+impl<T, const W: usize, const H: usize, const D: usize> Array3D<W, H, D> for [[[T; W]; H]; D] {
     type Item = T;
 
     fn get_1to3(&self, idx: impl Into<usize>) -> &T {
         let (x, y, z) = Self::idx_1to3(idx.into());
-        &self[x][y][z]
+        &self[z][y][x]
     }
 
     fn get_mut_1to3(&mut self, idx: impl Into<usize>) -> &mut T {
         let (x, y, z) = Self::idx_1to3(idx.into());
-        &mut self[x][y][z]
+        &mut self[z][y][x]
     }
 }
