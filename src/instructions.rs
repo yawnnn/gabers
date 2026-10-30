@@ -74,16 +74,15 @@ impl Cpu {
     // - - - -
     pub fn load16_hl_sp_e8(&mut self, gb: &mut Gameboy) {
         let sp = self.read16(gb, SP);
-        let offset = self.fetch8(gb) as i8;
-        let (res, carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 7);
-        let (_, half_carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 3);
+        let value = self.fetch8(gb) as i8 as i16 as u16;
+        let (res, carry) = sp.overflowing_add(value);
+        let (_, half_carry) = sp.half_overflowing_add(value);
+        self.write16(gb, Reg16::HL, res);
 
         self.regs.set(Flag::Z, false);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, half_carry);
         self.regs.set(Flag::C, carry);
-
-        self.write16(gb, Reg16::HL, res);
     }
 
     // LDH A, [n16]
@@ -149,20 +148,19 @@ impl Cpu {
     // ADD HL, SP
     // Z N H C
     // - 0 * *
-    pub fn add16<I>(&mut self, gb: &mut Gameboy, src: I)
+    pub fn add16_hl<I>(&mut self, gb: &mut Gameboy, src: I)
     where
         Self: In16<I>,
     {
-        let reg_hl = self.regs.read16(Reg16::HL);
+        let hl = self.regs.read16(Reg16::HL);
         let value = self.read16(gb, src);
-        let (res, carry) = u16::bit_overflowing_add(&[reg_hl, value], 15);
-        let (_, half_carry) = u16::bit_overflowing_add(&[reg_hl, value], 11);
+        let (res, carry) = hl.overflowing_add(value);
+        let (_, half_carry) = hl.half_overflowing_add(value);
+        self.regs.write16(Reg16::HL, res);
 
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, half_carry);
         self.regs.set(Flag::C, carry);
-
-        self.regs.write16(Reg16::HL, res);
     }
 
     // ADD SP, e8
@@ -170,16 +168,15 @@ impl Cpu {
     // 0 0 * *
     pub fn add16_sp_e(&mut self, gb: &mut Gameboy) {
         let sp = self.read16(gb, SP);
-        let offset = self.fetch8(gb) as i8;
-        let (res, carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 7);
-        let (_, half_carry) = u16::bit_overflowing_add(&[sp, offset as i16 as u16], 3);
+        let value = self.fetch8(gb) as i8 as i16 as u16;
+        let (res, carry) = sp.overflowing_add(value);
+        let (_, half_carry) = sp.half_overflowing_add(value);
+        self.write16(gb, SP, res);
 
         self.regs.set(Flag::Z, false);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, half_carry);
         self.regs.set(Flag::C, carry);
-
-        self.write16(gb, SP, res);
     }
 
     // CP A, r8
@@ -205,12 +202,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = value.wrapping_sub(1);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, true);
         self.regs.set(Flag::H, res & 0xF == 0);
-
-        self.write8(gb, io, res);
     }
 
     // DEC r16
@@ -235,13 +231,12 @@ impl Cpu {
         Self: Io8<Io>,
     {
         let value = self.read8(gb, dst);
-        let (res, half_carry) = u8::bit_overflowing_add(&[value, 1], 3);
+        let (res, half_carry) = value.half_overflowing_add(1);
+        self.write8(gb, dst, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, half_carry);
-
-        self.write8(gb, dst, res);
     }
 
     // INC r16
@@ -300,13 +295,12 @@ impl Cpu {
         let reg_a = self.regs.read8(Reg8::A);
         let value = self.read8(gb, src);
         let res = reg_a & value;
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, true);
         self.regs.set(Flag::C, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // CPL
@@ -315,11 +309,10 @@ impl Cpu {
     pub fn cpl(&mut self, _: &mut Gameboy) {
         let value = self.regs.read8(Reg8::A);
         let res = !value;
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::N, true);
         self.regs.set(Flag::H, true);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // OR A, r8
@@ -334,13 +327,12 @@ impl Cpu {
         let reg_a = self.regs.read8(Reg8::A);
         let value = self.read8(gb, src);
         let res = reg_a | value;
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
         self.regs.set(Flag::C, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // XOR A, r8
@@ -355,13 +347,12 @@ impl Cpu {
         let reg_a = self.regs.read8(Reg8::A);
         let value = self.read8(gb, src);
         let res = reg_a ^ value;
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
         self.regs.set(Flag::C, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     /*
@@ -424,12 +415,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_rl(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // RLA
@@ -438,12 +428,11 @@ impl Cpu {
     pub fn rla(&mut self, _: &mut Gameboy) {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rl(value);
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, false);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // RLC r8
@@ -456,12 +445,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_rlc(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // RLCA
@@ -470,12 +458,11 @@ impl Cpu {
     pub fn rlca(&mut self, _: &mut Gameboy) {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rlc(value);
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, false);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // RR r8
@@ -488,12 +475,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_rr(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // RRA
@@ -502,12 +488,11 @@ impl Cpu {
     pub fn rra(&mut self, _: &mut Gameboy) {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rr(value);
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, false);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // RRC r8
@@ -520,12 +505,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_rrc(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // RRCA
@@ -534,12 +518,11 @@ impl Cpu {
     pub fn rrca(&mut self, _: &mut Gameboy) {
         let value = self.regs.read8(Reg8::A);
         let res = self.alu_rrc(value);
+        self.regs.write8(Reg8::A, res);
 
         self.regs.set(Flag::Z, false);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.regs.write8(Reg8::A, res);
     }
 
     // SLA r8
@@ -552,12 +535,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_sla(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // SRA r8
@@ -570,12 +552,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_sra(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // SRL r8
@@ -588,12 +569,11 @@ impl Cpu {
     {
         let value = self.read8(gb, io);
         let res = self.alu_srl(value);
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
-
-        self.write8(gb, io, res);
     }
 
     // SWAP r8
@@ -608,13 +588,12 @@ impl Cpu {
         let lo = value << 4;
         let hi = value >> 4;
         let res = lo | hi;
+        self.write8(gb, io, res);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
         self.regs.set(Flag::H, false);
         self.regs.set(Flag::C, false);
-
-        self.write8(gb, io, res);
     }
 
     /*

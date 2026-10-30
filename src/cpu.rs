@@ -129,9 +129,9 @@ impl Cpu {
     // Z N H C
     // * 0 * *
     pub fn alu_add(&mut self, value: u8, cf: u8) -> u8 {
-        let reg_a = self.regs.read8(Reg8::A);
-        let (res, carry) = u8::bit_overflowing_add(&[reg_a, value, cf], 7);
-        let (_, half_carry) = u8::bit_overflowing_add(&[reg_a, value, cf], 3);
+        let a = self.regs.read8(Reg8::A);
+        let (res, carry) = a.fold_overflowing_op(&[value, cf], u8::overflowing_add);
+        let (_, half_carry) = a.fold_overflowing_op(&[value, cf], u8::half_overflowing_add);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, false);
@@ -144,9 +144,9 @@ impl Cpu {
     // Z N H C
     // * 1 * *
     pub fn alu_sub(&mut self, value: u8, cf: u8) -> u8 {
-        let reg_a = self.regs.read8(Reg8::A);
-        let (res, carry) = u8::bit_overflowing_sub(&[reg_a, value, cf], 8);
-        let (_, half_carry) = u8::bit_overflowing_sub(&[reg_a, value, cf], 4);
+        let a = self.regs.read8(Reg8::A);
+        let (res, carry) = a.fold_overflowing_op(&[value, cf], u8::overflowing_sub);
+        let (_, half_carry) = a.fold_overflowing_op(&[value, cf], u8::half_overflowing_sub);
 
         self.regs.set(Flag::Z, res == 0);
         self.regs.set(Flag::N, true);

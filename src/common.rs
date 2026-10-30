@@ -1,7 +1,5 @@
-use num_traits::PrimInt;
-use num_traits::WrappingSub;
-use num_traits::ops::overflowing::OverflowingAdd;
-use std::ops;
+use num_traits::{PrimInt, WrappingAdd, WrappingSub};
+use std::{mem, ops};
 
 #[allow(unused)]
 pub const trait Span {
@@ -22,71 +20,48 @@ const impl Span for ops::RangeInclusive<usize> {
 
 pub trait NumTraitsExt
 where
-    Self: std::marker::Sized,
+    Self: PrimInt,
 {
-    /// return a `Self` such that all bits up to the `bit`th are 1 and the rest are 0
-    fn bitmask(bit: u8) -> Self;
+    /// bitmask for the "half overflow"
+    fn half_overflow_bitmask() -> Self;
 
-    /// add `nums` with wrapping but check if `bit` has carry
-    /// akin to overflowing_add but over N elements and bit-specific
-    fn bit_overflowing_add(nums: &[Self], bit: u8) -> (Self, bool);
+    /// wrapping add and check overflow to `numbits/2` bit
+    fn half_overflowing_add(self, other: Self) -> (Self, bool);
 
-    /// sub `nums` with wrapping but check if `bit` has borrow
-    /// akin to overflowing_sub but over N elements and bit-specific
-    fn bit_overflowing_sub(nums: &[Self], bit: u8) -> (Self, bool);
+    /// wrapping sub and check borrow from `numbits/2` bit
+    fn half_overflowing_sub(self, other: Self) -> (Self, bool);
+
+    /// fold `self` and `others` with `predicate` which returns (Self, bool)
+    fn fold_overflowing_op(
+        self,
+        others: &[Self],
+        predicate: fn(Self, Self) -> (Self, bool),
+    ) -> (Self, bool) {
+        others.iter().fold((self, false), |(acc, carry1), n| {
+            let (r, carry2) = predicate(acc, *n);
+            (r, carry1 || carry2)
+        })
+    }
 }
 
-impl<T: PrimInt + OverflowingAdd + WrappingSub> NumTraitsExt for T {
-    fn bitmask(bit: u8) -> Self {
-        let max_bits = (8 * std::mem::size_of::<Self>()) as u8;
-        assert!(bit < max_bits);
-
-        if bit == max_bits - 1 {
-            Self::max_value()
-        } else {
-            (Self::one() << (bit + 1) as usize) - Self::one()
-        }
+impl<T: PrimInt + WrappingAdd + WrappingSub> NumTraitsExt for T {
+    fn half_overflow_bitmask() -> Self {
+        let numbits = mem::size_of::<Self>() * 8;
+        (Self::one() << (numbits / 2)) - Self::one()
     }
 
-    fn bit_overflowing_add(nums: &[Self], bit: u8) -> (Self, bool) {
-        assert!(!nums.is_empty());
-
-        let mask = Self::bitmask(bit);
-        let mut acc = nums[0] & mask;
-        let mut carry = false;
-
-        for &x in &nums[1..] {
-            let x_masked = x & mask;
-            let (sum, overflow) = acc.overflowing_add(&x_masked);
-
-            if (sum & !mask) != Self::zero() || overflow {
-                carry = true;
-            }
-
-            acc = sum;
-        }
-
-        (acc, carry)
+    fn half_overflowing_add(self, other: Self) -> (Self, bool) {
+        let res = self.wrapping_add(&other);
+        let bitmask = Self::half_overflow_bitmask();
+        let half_carry = (self & bitmask) + (other & bitmask) > bitmask;
+        (res, half_carry)
     }
 
-    fn bit_overflowing_sub(nums: &[Self], bit: u8) -> (Self, bool) {
-        assert!(!nums.is_empty());
-
-        let mask = Self::bitmask(bit - 1);
-        let mut acc = nums[0] & mask;
-        let mut borrow = false;
-
-        for &x in &nums[1..] {
-            let x_masked = x & mask;
-
-            if acc < x_masked {
-                borrow = true;
-            }
-
-            acc = acc.wrapping_sub(&x_masked);
-        }
-
-        (acc, borrow)
+    fn half_overflowing_sub(self, other: Self) -> (Self, bool) {
+        let res = self.wrapping_sub(&other);
+        let bitmask = Self::half_overflow_bitmask();
+        let half_carry = (self & bitmask) < (other & bitmask);
+        (res, half_carry)
     }
 }
 
