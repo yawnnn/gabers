@@ -136,11 +136,11 @@ impl Registers {
         self.write8(r8_hi, hi);
     }
 
-    pub fn get(&self, flag: Flag) -> bool {
+    pub fn get_flag(&self, flag: Flag) -> bool {
         self.f & (flag as u8) != 0
     }
 
-    pub fn set(&mut self, flag: Flag, value: bool) {
+    pub fn set_flag(&mut self, flag: Flag, value: bool) {
         if value {
             self.f |= flag as u8;
         } else {

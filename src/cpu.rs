@@ -61,6 +61,30 @@ impl Cpu {
         word
     }
 
+    pub fn get_reg8(&self, r8: Reg8) -> u8 {
+        self.regs.read8(r8)
+    }
+
+    pub fn get_reg16(&self, r16: Reg16) -> u16 {
+        self.regs.read16(r16)
+    }
+
+    pub fn set_reg8(&mut self, r8: Reg8, value: u8) {
+        self.regs.write8(r8, value);
+    }
+
+    pub fn set_reg16(&mut self, r16: Reg16, value: u16) {
+        self.regs.write16(r16, value);
+    }
+
+    pub fn get_flag(&self, flag: Flag) -> bool {
+        self.regs.get_flag(flag)
+    }
+
+    pub fn set_flag(&mut self, flag: Flag, value: bool) {
+        self.regs.set_flag(flag, value);
+    }
+
     pub fn read_addr(&mut self, gb: &mut Gameboy, addr: Addr) -> u16 {
         match addr {
             Addr::BC => self.read16(gb, Reg16::BC),
@@ -129,14 +153,14 @@ impl Cpu {
     // Z N H C
     // * 0 * *
     pub fn alu_add(&mut self, value: u8, cf: u8) -> u8 {
-        let a = self.regs.read8(Reg8::A);
+        let a = self.get_reg8(Reg8::A);
         let (res, carry) = a.fold_overflowing_op(&[value, cf], u8::overflowing_add);
         let (_, half_carry) = a.fold_overflowing_op(&[value, cf], u8::half_overflowing_add);
 
-        self.regs.set(Flag::Z, res == 0);
-        self.regs.set(Flag::N, false);
-        self.regs.set(Flag::H, half_carry);
-        self.regs.set(Flag::C, carry);
+        self.set_flag(Flag::Z, res == 0);
+        self.set_flag(Flag::N, false);
+        self.set_flag(Flag::H, half_carry);
+        self.set_flag(Flag::C, carry);
 
         res
     }
@@ -144,14 +168,14 @@ impl Cpu {
     // Z N H C
     // * 1 * *
     pub fn alu_sub(&mut self, value: u8, cf: u8) -> u8 {
-        let a = self.regs.read8(Reg8::A);
+        let a = self.get_reg8(Reg8::A);
         let (res, carry) = a.fold_overflowing_op(&[value, cf], u8::overflowing_sub);
         let (_, half_carry) = a.fold_overflowing_op(&[value, cf], u8::half_overflowing_sub);
 
-        self.regs.set(Flag::Z, res == 0);
-        self.regs.set(Flag::N, true);
-        self.regs.set(Flag::H, half_carry);
-        self.regs.set(Flag::C, carry);
+        self.set_flag(Flag::Z, res == 0);
+        self.set_flag(Flag::N, true);
+        self.set_flag(Flag::H, half_carry);
+        self.set_flag(Flag::C, carry);
 
         res
     }
@@ -159,11 +183,11 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rl(&mut self, value: u8) -> u8 {
-        let cf = self.regs.get(Flag::C);
+        let cf = self.get_flag(Flag::C);
         let res = (value << 1) | cf as u8;
         let new_cf = value & 0x80;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -174,7 +198,7 @@ impl Cpu {
         let res = value.rotate_left(1);
         let new_cf = value & 0x80;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -182,11 +206,11 @@ impl Cpu {
     // Z N H C
     // - - - *
     pub fn alu_rr(&mut self, value: u8) -> u8 {
-        let cf = self.regs.get(Flag::C);
+        let cf = self.get_flag(Flag::C);
         let res = (value >> 1) | ((cf as u8) << 7);
         let new_cf = value & 0x01;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -197,7 +221,7 @@ impl Cpu {
         let res = value.rotate_right(1);
         let new_cf = value & 0x01;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -208,7 +232,7 @@ impl Cpu {
         let res = value << 1;
         let new_cf = value & 0x80;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -219,7 +243,7 @@ impl Cpu {
         let res = (value >> 1) | (value & 0x80);
         let new_cf = value & 0x01;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -230,7 +254,7 @@ impl Cpu {
         let res = value >> 1;
         let new_cf = value & 0x01;
 
-        self.regs.set(Flag::C, new_cf != 0);
+        self.set_flag(Flag::C, new_cf != 0);
 
         res
     }
@@ -248,10 +272,10 @@ impl Cpu {
 
     pub fn check_condition(&self, cond: Condition) -> bool {
         match cond {
-            Condition::CF => self.regs.get(Flag::C),
-            Condition::NoCF => !self.regs.get(Flag::C),
-            Condition::ZF => self.regs.get(Flag::Z),
-            Condition::NoZF => !self.regs.get(Flag::Z),
+            Condition::CF => self.get_flag(Flag::C),
+            Condition::NoCF => !self.get_flag(Flag::C),
+            Condition::ZF => self.get_flag(Flag::Z),
+            Condition::NoZF => !self.get_flag(Flag::Z),
         }
     }
 
@@ -287,25 +311,25 @@ pub trait Out16<T> {
 
 impl In8<Reg8> for Cpu {
     fn read8(&mut self, _: &mut Gameboy, src: Reg8) -> u8 {
-        self.regs.read8(src)
+        self.get_reg8(src)
     }
 }
 
 impl Out8<Reg8> for Cpu {
     fn write8(&mut self, _: &mut Gameboy, dst: Reg8, value: u8) {
-        self.regs.write8(dst, value);
+        self.set_reg8(dst, value);
     }
 }
 
 impl In16<Reg16> for Cpu {
     fn read16(&mut self, _: &mut Gameboy, src: Reg16) -> u16 {
-        self.regs.read16(src)
+        self.get_reg16(src)
     }
 }
 
 impl Out16<Reg16> for Cpu {
     fn write16(&mut self, _: &mut Gameboy, dst: Reg16, value: u16) {
-        self.regs.write16(dst, value);
+        self.set_reg16(dst, value);
     }
 }
 
