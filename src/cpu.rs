@@ -107,7 +107,11 @@ impl Cpu {
     fn handle_interrupts(&mut self, gb: &mut Gameboy) -> Option<MCycle> {
         let bits = gb.inter.enabled();
         let inter = (1 << bits.trailing_zeros()) as u8; // lowest bit has priority
-        if !self.ime || inter == 0 {
+        if inter == 0 {
+            return None;
+        }
+        self.low_power_mode = false; // interrupts wake from HALT regardless of IME
+        if !self.ime {
             return None;
         }
         self.ime = false;
