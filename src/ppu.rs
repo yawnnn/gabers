@@ -356,7 +356,7 @@ impl Ppu {
             tile_y = obj.size - 1 - tile_y;
         }
         let tile_id = obj.tile_id + (tile_y as u16 / TILE_SIDE as u16);
-        let [lo, hi] = self.get_tile_dword(tile_id, tile_y);
+        let [lo, hi] = self.get_tile_dword(tile_id, tile_y % TILE_SIDE as u8);
 
         for j in 0..TILE_SIDE {
             let bit = if obj.flags.get(ObjFlags::FLIP_X) {
