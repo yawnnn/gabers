@@ -28,7 +28,8 @@ where
     fn half_carrying_add(self, other: Self, carry: bool) -> (Self, bool) {
         let res = self.wrapping_add(&other).wrapping_add(&carry.into());
         let bitmask = Self::half_carry_bitmask();
-        let half_carry = (self.into() & bitmask) + (other.into() & bitmask) + (carry as usize) > bitmask;
+        let half_carry =
+            (self.into() & bitmask) + (other.into() & bitmask) + (carry as usize) > bitmask;
         (res, half_carry)
     }
 

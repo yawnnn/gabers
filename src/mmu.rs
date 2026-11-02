@@ -55,12 +55,6 @@ macro_rules! hram_range {
     };
 }
 pub(crate) use hram_range;
-/// Interrupt Enable register (IE)
-macro_rules! ie_addr {
-    () => {
-        0xFFFF
-    };
-}
 /// Joypad input
 macro_rules! joypad_addr {
     () => {
@@ -121,6 +115,12 @@ macro_rules! unmap_bootrom_addr {
         0xFF50
     };
 }
+/// Interrupt Enable register (IE)
+macro_rules! ie_addr {
+    () => {
+        0xFFFF
+    };
+}
 
 impl Gameboy {
     pub fn read8(&self, addr: u16) -> u8 {
@@ -137,7 +137,7 @@ impl Gameboy {
             echo_ram_range!() => self.read8(addr - 0x2000),
             oam_range!() => self.ppu.read8(addr),
             joypad_addr!() => self.joypad.read8(),
-            serial_range!() => 0xFF, // TODO
+            serial_range!() => self.serial.read8(addr),
             timer_range!() => self.timer.read8(addr),
             if_addr!() => *self.inter.flags,
             audio_range!() => 0xFF, // TODO
@@ -166,7 +166,7 @@ impl Gameboy {
             echo_ram_range!() => self.write8(addr - 0x2000, val),
             oam_range!() => self.ppu.write8(addr, val),
             joypad_addr!() => self.joypad.write8(val),
-            serial_range!() => (), // TODO
+            serial_range!() => self.serial.write8(addr, val),
             timer_range!() => self.timer.write8(&mut self.inter, addr, val),
             if_addr!() => *self.inter.flags = val,
             audio_range!() => (), // TODO

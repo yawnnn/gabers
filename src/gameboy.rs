@@ -8,6 +8,7 @@ use crate::interrupt::*;
 use crate::joypad::{Joypad, JoypadKey};
 use crate::mmu::*;
 use crate::ppu::*;
+use crate::serial::{NullIo, Serial};
 use crate::timer::Timer;
 
 pub const SCREEN_W: usize = 160;
@@ -68,6 +69,7 @@ pub struct Gameboy {
     pub inter: Interrupts,
     pub joypad: Joypad,
     pub timer: Timer,
+    pub serial: Serial,
     pub wram: Box<[u8; wram_range!().span()]>,
     pub hram: Box<[u8; hram_range!().span()]>,
     dma_transfer: Option<DmaTransfer>,
@@ -96,6 +98,7 @@ impl Gameboy {
             inter: Interrupts::new(),
             joypad: Joypad::default(),
             timer: Timer::new(),
+            serial: Serial::new(Box::new(NullIo)),
             wram: boxed_1d(),
             hram: boxed_1d(),
             window,
@@ -179,6 +182,7 @@ impl Gameboy {
         let mcycles = cpu.step(self);
         let tcycles = mcycles.to_tcycle();
         self.timer.tick(&mut self.inter, tcycles);
+        self.serial.tick(&mut self.inter, tcycles);
         self.tick_dma_transfer(mcycles);
         self.ppu.render(&mut self.inter, tcycles);
 

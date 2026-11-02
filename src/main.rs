@@ -11,6 +11,7 @@ mod joypad;
 mod mmu;
 mod ppu;
 mod registers;
+mod serial;
 mod timer;
 
 use std::env;
