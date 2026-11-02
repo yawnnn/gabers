@@ -71,12 +71,14 @@ impl Cpu {
 
     // LD HL, SP+e8
     // Z N H C
-    // - - - -
+    // 0 0 * *
     pub fn load16_hl_sp_e8(&mut self, gb: &mut Gameboy) {
         let sp = self.read16(gb, SP);
-        let value = self.fetch8(gb) as i8 as i16 as u16;
-        let (res, carry) = sp.overflowing_add(value);
-        let (_, half_carry) = sp.half_overflowing_add(value);
+        let offset = self.fetch8(gb);
+        let res = sp.wrapping_add(offset as i8 as i16 as u16);
+        let sp8 = (sp & 0xFF) as u8;
+        let (_, carry) = sp8.overflowing_add(offset);
+        let (_, half_carry) = sp8.half_carrying_add(offset, false);
         self.write16(gb, Reg16::HL, res);
 
         self.set_flag(Flag::Z, false);
@@ -126,7 +128,7 @@ impl Cpu {
     {
         let value = self.read8(gb, src);
         let cf = self.get_flag(Flag::C);
-        let res = self.alu_add(value, cf as u8);
+        let res = self.alu_add(value, cf);
         self.set_reg8(Reg8::A, res);
     }
 
@@ -140,7 +142,7 @@ impl Cpu {
         Self: In8<I>,
     {
         let value = self.read8(gb, src);
-        let res = self.alu_add(value, 0);
+        let res = self.alu_add(value, false);
         self.set_reg8(Reg8::A, res);
     }
 
@@ -155,7 +157,7 @@ impl Cpu {
         let hl = self.get_reg16(Reg16::HL);
         let value = self.read16(gb, src);
         let (res, carry) = hl.overflowing_add(value);
-        let (_, half_carry) = hl.half_overflowing_add(value);
+        let (_, half_carry) = hl.half_carrying_add(value, false);
         self.set_reg16(Reg16::HL, res);
 
         self.set_flag(Flag::N, false);
@@ -168,9 +170,11 @@ impl Cpu {
     // 0 0 * *
     pub fn add16_sp_e(&mut self, gb: &mut Gameboy) {
         let sp = self.read16(gb, SP);
-        let value = self.fetch8(gb) as i8 as i16 as u16;
-        let (res, carry) = sp.overflowing_add(value);
-        let (_, half_carry) = sp.half_overflowing_add(value);
+        let offset = self.fetch8(gb);
+        let res = sp.wrapping_add(offset as i8 as i16 as u16);
+        let sp8 = (sp & 0xFF) as u8;
+        let (_, carry) = sp8.overflowing_add(offset);
+        let (_, half_carry) = sp8.half_carrying_add(offset, false);
         self.write16(gb, SP, res);
 
         self.set_flag(Flag::Z, false);
@@ -189,7 +193,7 @@ impl Cpu {
         Self: In8<I>,
     {
         let value = self.read8(gb, src);
-        self.alu_sub(value, 0);
+        self.alu_sub(value, false);
     }
 
     // DEC r8
@@ -201,12 +205,12 @@ impl Cpu {
         Self: Io8<Io>,
     {
         let value = self.read8(gb, io);
-        let (res, carry) = value.half_overflowing_sub(1);
+        let (res, half_carry) = value.half_borrowing_sub(1, false);
         self.write8(gb, io, res);
 
         self.set_flag(Flag::Z, res == 0);
         self.set_flag(Flag::N, true);
-        self.set_flag(Flag::H, carry);
+        self.set_flag(Flag::H, half_carry);
     }
 
     // DEC r16
@@ -231,7 +235,7 @@ impl Cpu {
         Self: Io8<Io>,
     {
         let value = self.read8(gb, dst);
-        let (res, half_carry) = value.half_overflowing_add(1);
+        let (res, half_carry) = value.half_carrying_add(1, false);
         self.write8(gb, dst, res);
 
         self.set_flag(Flag::Z, res == 0);
@@ -261,7 +265,7 @@ impl Cpu {
     {
         let value = self.read8(gb, src);
         let cf = self.get_flag(Flag::C);
-        let res = self.alu_sub(value, cf as u8);
+        let res = self.alu_sub(value, cf);
         self.write8(gb, Reg8::A, res);
     }
 
@@ -275,7 +279,7 @@ impl Cpu {
         Self: In8<I>,
     {
         let value = self.read8(gb, src);
-        let res = self.alu_sub(value, 0);
+        let res = self.alu_sub(value, false);
         self.write8(gb, Reg8::A, res);
     }
 

@@ -1,5 +1,5 @@
-use num_traits::{PrimInt, WrappingAdd, WrappingSub};
-use std::{mem, ops};
+use num_traits::{PrimInt, WrappingAdd, WrappingSub, ops::overflowing::OverflowingSub};
+use std::ops;
 
 #[allow(unused)]
 pub const trait Span {
@@ -20,48 +20,36 @@ const impl Span for ops::RangeInclusive<usize> {
 
 pub trait NumTraitsExt
 where
-    Self: PrimInt,
+    Self: PrimInt + WrappingAdd + WrappingSub + OverflowingSub + From<bool> + Into<usize>,
 {
-    /// bitmask for the "half overflow"
-    fn half_overflow_bitmask() -> Self;
+    fn half_carry_bitmask() -> usize;
 
-    /// wrapping add and check overflow to `numbits/2` bit
-    fn half_overflowing_add(self, other: Self) -> (Self, bool);
+    /// like `carrying_add` but checks half-carry
+    fn half_carrying_add(self, other: Self, carry: bool) -> (Self, bool) {
+        let res = self.wrapping_add(&other).wrapping_add(&carry.into());
+        let bitmask = Self::half_carry_bitmask();
+        let half_carry = (self.into() & bitmask) + (other.into() & bitmask) + (carry as usize) > bitmask;
+        (res, half_carry)
+    }
 
-    /// wrapping sub and check borrow from `numbits/2` bit
-    fn half_overflowing_sub(self, other: Self) -> (Self, bool);
-
-    /// fold `self` and `others` with `predicate` which returns (Self, bool)
-    fn fold_overflowing_op(
-        self,
-        others: &[Self],
-        predicate: fn(Self, Self) -> (Self, bool),
-    ) -> (Self, bool) {
-        others.iter().fold((self, false), |(acc, carry1), n| {
-            let (r, carry2) = predicate(acc, *n);
-            (r, carry1 || carry2)
-        })
+    /// like `borrowing_sub` but checks half-borrow
+    fn half_borrowing_sub(self, other: Self, borrow: bool) -> (Self, bool) {
+        let res = self.wrapping_sub(&other).wrapping_sub(&borrow.into());
+        let bitmask = Self::half_carry_bitmask();
+        let half_borrow = (self.into() & bitmask) < (other.into() & bitmask) + (borrow as usize);
+        (res, half_borrow)
     }
 }
 
-impl<T: PrimInt + WrappingAdd + WrappingSub> NumTraitsExt for T {
-    fn half_overflow_bitmask() -> Self {
-        let numbits = mem::size_of::<Self>() * 8;
-        (Self::one() << (numbits / 2)) - Self::one()
+impl NumTraitsExt for u8 {
+    fn half_carry_bitmask() -> usize {
+        0x0F
     }
+}
 
-    fn half_overflowing_add(self, other: Self) -> (Self, bool) {
-        let res = self.wrapping_add(&other);
-        let bitmask = Self::half_overflow_bitmask();
-        let half_carry = (self & bitmask) + (other & bitmask) > bitmask;
-        (res, half_carry)
-    }
-
-    fn half_overflowing_sub(self, other: Self) -> (Self, bool) {
-        let res = self.wrapping_sub(&other);
-        let bitmask = Self::half_overflow_bitmask();
-        let half_carry = (self & bitmask) < (other & bitmask);
-        (res, half_carry)
+impl NumTraitsExt for u16 {
+    fn half_carry_bitmask() -> usize {
+        0x0FFF
     }
 }
 
