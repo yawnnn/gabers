@@ -13,10 +13,18 @@ pub enum JoypadKey {
     Start  = 1 << 7,
 }
 
-#[derive(Default)]
 pub struct Joypad {
     state: u8,
     select: u8,
+}
+
+impl Default for Joypad {
+    fn default() -> Self {
+        Joypad {
+            state: 0xFF,
+            select: 0,
+        }
+    }
 }
 
 impl Joypad {
