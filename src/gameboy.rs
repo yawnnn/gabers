@@ -63,7 +63,7 @@ impl Iterator for DmaTransfer {
     }
 }
 
-pub struct Gameboy {
+pub struct Peripherals {
     pub cartridge: Cartridge,
     pub ppu: Ppu,
     pub inter: Interrupts,
@@ -73,92 +73,9 @@ pub struct Gameboy {
     pub wram: Box<[u8; wram_range!().span()]>,
     pub hram: Box<[u8; hram_range!().span()]>,
     dma_transfer: Option<DmaTransfer>,
-    has_bootrom: bool,
-
-    window: Window,
-    screen: Box<[u32; SCREEN_W * SCREEN_H * SCREEN_SCALE]>,
 }
 
-impl Gameboy {
-    pub fn new(cartridge_path: impl AsRef<Path>, bootrom: Option<&str>) -> Box<Self> {
-        let cartridge = Cartridge::new(cartridge_path.as_ref(), bootrom).unwrap();
-
-        let mut window = Window::new(
-            &cartridge.title,
-            SCREEN_W * SCREEN_SCALE,
-            SCREEN_H * SCREEN_SCALE,
-            WindowOptions::default(),
-        )
-        .unwrap();
-        window.set_target_fps(TARGET_FPS);
-
-        Box::new(Gameboy {
-            cartridge,
-            ppu: Ppu::new(),
-            inter: Interrupts::new(),
-            joypad: Joypad::default(),
-            timer: Timer::new(),
-            serial: Serial::new(Box::new(NullIo)),
-            wram: boxed_1d(),
-            hram: boxed_1d(),
-            window,
-            screen: boxed_1d(),
-            dma_transfer: None,
-            has_bootrom: bootrom.is_some(),
-        })
-    }
-
-    fn draw(&mut self) {
-        for (i, rgb) in self.ppu.buf.iter().enumerate() {
-            let [r, g, b] = *rgb;
-            let px = u32::from_le_bytes([r, g, b, 0xFF]);
-
-            let scaled_x = (i % SCREEN_W) * SCREEN_SCALE_1D;
-            let scaled_y = (i / SCREEN_W) * SCREEN_SCALE_1D;
-
-            for dy in 0..SCREEN_SCALE_1D {
-                for dx in 0..SCREEN_SCALE_1D {
-                    let screen_x = scaled_x + dx;
-                    let screen_y = scaled_y + dy;
-                    let screen_idx = screen_y * SCALED_SCREEN_W + screen_x;
-                    self.screen[screen_idx] = px;
-                }
-            }
-        }
-
-        self.window
-            .update_with_buffer(self.screen.as_ref(), SCALED_SCREEN_W, SCALED_SCREEN_H)
-            .unwrap();
-    }
-
-    fn handle_input(&mut self) -> bool {
-        let joypad_keys = [
-            (Key::Right, JoypadKey::Right),
-            (Key::Up, JoypadKey::Up),
-            (Key::Left, JoypadKey::Left),
-            (Key::Down, JoypadKey::Down),
-            (Key::Z, JoypadKey::A),
-            (Key::X, JoypadKey::B),
-            (Key::Space, JoypadKey::Select),
-            (Key::Enter, JoypadKey::Start),
-        ];
-
-        for (key, joypad_key) in joypad_keys {
-            if self.window.is_key_down(key) {
-                self.joypad.press(&mut self.inter, joypad_key);
-                self.inter.raise(InterruptFlags::JOYPAD);
-            } else {
-                self.joypad.release(joypad_key);
-            }
-        }
-
-        if self.window.is_key_down(Key::Escape) {
-            return false;
-        }
-
-        self.window.is_open()
-    }
-
+impl Peripherals {
     pub fn in_dma_transfer(&self) -> bool {
         self.dma_transfer.is_some()
     }
@@ -177,25 +94,114 @@ impl Gameboy {
             self.dma_transfer = it.next();
         }
     }
+}
 
-    fn step(&mut self, cpu: &mut Cpu) -> TCycle {
-        let mcycles = cpu.step(self);
+pub struct Gameboy {
+    pub pe: Peripherals,
+    pub cpu: Cpu,
+    window: Window,
+    buf: Box<[u32; SCREEN_W * SCREEN_H * SCREEN_SCALE]>,
+}
+
+impl Gameboy {
+    pub fn new(cartridge_path: impl AsRef<Path>, bootrom: Option<&str>) -> Self {
+        let cartridge = Cartridge::new(cartridge_path.as_ref(), bootrom).unwrap();
+
+        let mut window = Window::new(
+            &cartridge.title,
+            SCREEN_W * SCREEN_SCALE,
+            SCREEN_H * SCREEN_SCALE,
+            WindowOptions::default(),
+        )
+        .unwrap();
+        window.set_target_fps(TARGET_FPS);
+
+        let pe = Peripherals {
+            cartridge,
+            ppu: Ppu::new(),
+            inter: Interrupts::new(),
+            joypad: Joypad::default(),
+            timer: Timer::new(),
+            serial: Serial::new(Box::new(NullIo)),
+            wram: boxed_1d(),
+            hram: boxed_1d(),
+            dma_transfer: None,
+        };
+        let cpu = Cpu::new(bootrom.is_some(), pe.cartridge.checksum);
+
+        Gameboy { pe, cpu, window, buf: boxed_1d() }
+    }
+
+    fn step(&mut self) -> TCycle {
+        let pe = &mut self.pe;
+        let mcycles = self.cpu.step(pe);
         let tcycles = mcycles.to_tcycle();
-        self.timer.tick(&mut self.inter, tcycles);
-        self.serial.tick(&mut self.inter, tcycles);
-        self.tick_dma_transfer(mcycles);
-        self.ppu.render(&mut self.inter, tcycles);
+        pe.timer.tick(&mut pe.inter, tcycles);
+        pe.serial.tick(&mut pe.inter, tcycles);
+        pe.tick_dma_transfer(mcycles);
+        pe.ppu.render(&mut pe.inter, tcycles);
 
         tcycles
     }
 
-    pub fn main_loop(&mut self) {
-        let mut cpu = Cpu::new(self.has_bootrom, self.cartridge.checksum);
+    fn draw(&mut self) {
+        for (i, rgb) in self.pe.ppu.buf.iter().enumerate() {
+            let [r, g, b] = *rgb;
+            let px = u32::from_le_bytes([r, g, b, 0xFF]);
 
+            let scaled_x = (i % SCREEN_W) * SCREEN_SCALE_1D;
+            let scaled_y = (i / SCREEN_W) * SCREEN_SCALE_1D;
+
+            for dy in 0..SCREEN_SCALE_1D {
+                for dx in 0..SCREEN_SCALE_1D {
+                    let screen_x = scaled_x + dx;
+                    let screen_y = scaled_y + dy;
+                    let screen_idx = screen_y * SCALED_SCREEN_W + screen_x;
+                    self.buf[screen_idx] = px;
+                }
+            }
+        }
+
+        self.window
+            .update_with_buffer(self.buf.as_ref(), SCALED_SCREEN_W, SCALED_SCREEN_H)
+            .unwrap();
+    }
+
+    fn handle_input(&mut self) -> bool {
+        let joypad_keys = [
+            (Key::Right, JoypadKey::Right),
+            (Key::Up, JoypadKey::Up),
+            (Key::Left, JoypadKey::Left),
+            (Key::Down, JoypadKey::Down),
+            (Key::Z, JoypadKey::A),
+            (Key::X, JoypadKey::B),
+            (Key::Space, JoypadKey::Select),
+            (Key::Enter, JoypadKey::Start),
+        ];
+
+        let pe = &mut self.pe;
+
+        for (key, joypad_key) in joypad_keys {
+            if self.window.is_key_down(key) {
+                pe.joypad.press(&mut pe.inter, joypad_key);
+                pe.inter.raise(InterruptFlags::JOYPAD);
+            } else {
+                pe.joypad.release(joypad_key);
+            }
+        }
+
+        if self.window.is_key_down(Key::Escape) {
+            return false;
+        }
+
+        self.window.is_open()
+    }
+
+    pub fn game_loop(&mut self) {
         while self.handle_input() {
             let mut cycles = 0;
             while cycles < TCYCLES_PER_FRAME {
-                let stepped = self.step(&mut cpu);
+                let stepped = self.step();
                 cycles = cycles.wrapping_add(stepped);
             }
             self.draw();

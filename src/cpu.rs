@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::gameboy::{Gameboy, MCycle};
+use crate::gameboy::*;
 use crate::registers::*;
 
 pub enum Condition {
@@ -45,17 +45,17 @@ impl Cpu {
         }
     }
 
-    pub fn fetch8(&mut self, gb: &mut Gameboy) -> u8 {
+    pub fn fetch8(&mut self, pe: &mut Peripherals) -> u8 {
         let pc = self.regs.pc;
-        let byte = gb.read8(pc);
+        let byte = pe.read8(pc);
         self.regs.pc = pc.wrapping_add(1);
 
         byte
     }
 
-    pub fn fetch16(&mut self, gb: &mut Gameboy) -> u16 {
+    pub fn fetch16(&mut self, pe: &mut Peripherals) -> u16 {
         let pc = self.regs.pc;
-        let word = gb.read16(pc);
+        let word = pe.read16(pc);
         self.regs.pc = pc.wrapping_add(2);
 
         word
@@ -85,27 +85,27 @@ impl Cpu {
         self.regs.set_flag(flag, value);
     }
 
-    pub fn read_addr(&mut self, gb: &mut Gameboy, addr: Addr) -> u16 {
+    pub fn read_addr(&mut self, pe: &mut Peripherals, addr: Addr) -> u16 {
         match addr {
-            Addr::BC => self.read16(gb, Reg16::BC),
-            Addr::DE => self.read16(gb, Reg16::DE),
-            Addr::HL => self.read16(gb, Reg16::HL),
+            Addr::BC => self.read16(pe, Reg16::BC),
+            Addr::DE => self.read16(pe, Reg16::DE),
+            Addr::HL => self.read16(pe, Reg16::HL),
             Addr::HLI => {
-                let addr = self.read16(gb, Reg16::HL);
-                self.write16(gb, Reg16::HL, addr.wrapping_add(1));
+                let addr = self.read16(pe, Reg16::HL);
+                self.write16(pe, Reg16::HL, addr.wrapping_add(1));
                 addr
             }
             Addr::HLD => {
-                let addr = self.read16(gb, Reg16::HL);
-                self.write16(gb, Reg16::HL, addr.wrapping_sub(1));
+                let addr = self.read16(pe, Reg16::HL);
+                self.write16(pe, Reg16::HL, addr.wrapping_sub(1));
                 addr
             }
-            Addr::Imm16 => self.fetch16(gb),
+            Addr::Imm16 => self.fetch16(pe),
         }
     }
 
-    fn handle_interrupts(&mut self, gb: &mut Gameboy) -> Option<MCycle> {
-        let bits = gb.inter.enabled();
+    fn handle_interrupts(&mut self, pe: &mut Peripherals) -> Option<MCycle> {
+        let bits = pe.inter.enabled();
         let inter = (1 << bits.trailing_zeros()) as u8; // lowest bit has priority
         if inter == 0 {
             return None;
@@ -115,7 +115,7 @@ impl Cpu {
             return None;
         }
         self.ime = false;
-        gb.inter.lower(inter);
+        pe.inter.lower(inter);
         let addr = match inter {
             0x01 => 0x40, // V-Blank
             0x02 => 0x48, // LCD
@@ -124,13 +124,13 @@ impl Cpu {
             0x10 => 0x60, // Joypad
             _ => unreachable!(),
         };
-        self.call(gb, addr);
+        self.call(pe, addr);
 
         Some(5) // 2 cycles of NOP + 3 cycles for call
     }
 
-    pub fn step(&mut self, gb: &mut Gameboy) -> MCycle {
-        if let Some(cycles) = self.handle_interrupts(gb) {
+    pub fn step(&mut self, pe: &mut Peripherals) -> MCycle {
+        if let Some(cycles) = self.handle_interrupts(pe) {
             return cycles;
         }
 
@@ -138,8 +138,8 @@ impl Cpu {
             return 1; // NOP
         }
 
-        let opcode = self.fetch8(gb);
-        let cycles = self.decode_exec(gb, opcode);
+        let opcode = self.fetch8(pe);
+        let cycles = self.decode_exec(pe, opcode);
 
         if self.pending_enable_ime {
             self.pending_enable_ime = false;
@@ -263,13 +263,13 @@ impl Cpu {
         res
     }
 
-    pub fn stack_push(&mut self, gb: &mut Gameboy, value: u16) {
+    pub fn stack_push(&mut self, pe: &mut Peripherals, value: u16) {
         self.regs.sp = self.regs.sp.wrapping_sub(2);
-        gb.write16(self.regs.sp, value);
+        pe.write16(self.regs.sp, value);
     }
 
-    pub fn stack_pop(&mut self, gb: &mut Gameboy) -> u16 {
-        let res = gb.read16(self.regs.sp);
+    pub fn stack_pop(&mut self, pe: &mut Peripherals) -> u16 {
+        let res = pe.read16(self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(2);
         res
     }
@@ -291,87 +291,87 @@ impl Cpu {
         self.regs.pc = addr;
     }
 
-    pub fn call(&mut self, gb: &mut Gameboy, addr: u16) {
-        self.stack_push(gb, self.regs.pc);
+    pub fn call(&mut self, pe: &mut Peripherals, addr: u16) {
+        self.stack_push(pe, self.regs.pc);
         self.jump_abs(addr);
     }
 }
 
 pub trait In8<T> {
-    fn read8(&mut self, gb: &mut Gameboy, src: T) -> u8;
+    fn read8(&mut self, pe: &mut Peripherals, src: T) -> u8;
 }
 
 pub trait Out8<T> {
-    fn write8(&mut self, gb: &mut Gameboy, dst: T, value: u8);
+    fn write8(&mut self, pe: &mut Peripherals, dst: T, value: u8);
 }
 
 pub trait In16<T> {
-    fn read16(&mut self, gb: &mut Gameboy, src: T) -> u16;
+    fn read16(&mut self, pe: &mut Peripherals, src: T) -> u16;
 }
 
 pub trait Out16<T> {
-    fn write16(&mut self, gb: &mut Gameboy, dst: T, value: u16);
+    fn write16(&mut self, pe: &mut Peripherals, dst: T, value: u16);
 }
 
 impl In8<Reg8> for Cpu {
-    fn read8(&mut self, _: &mut Gameboy, src: Reg8) -> u8 {
+    fn read8(&mut self, _: &mut Peripherals, src: Reg8) -> u8 {
         self.get_reg8(src)
     }
 }
 
 impl Out8<Reg8> for Cpu {
-    fn write8(&mut self, _: &mut Gameboy, dst: Reg8, value: u8) {
+    fn write8(&mut self, _: &mut Peripherals, dst: Reg8, value: u8) {
         self.set_reg8(dst, value);
     }
 }
 
 impl In16<Reg16> for Cpu {
-    fn read16(&mut self, _: &mut Gameboy, src: Reg16) -> u16 {
+    fn read16(&mut self, _: &mut Peripherals, src: Reg16) -> u16 {
         self.get_reg16(src)
     }
 }
 
 impl Out16<Reg16> for Cpu {
-    fn write16(&mut self, _: &mut Gameboy, dst: Reg16, value: u16) {
+    fn write16(&mut self, _: &mut Peripherals, dst: Reg16, value: u16) {
         self.set_reg16(dst, value);
     }
 }
 
 impl In8<Addr> for Cpu {
-    fn read8(&mut self, gb: &mut Gameboy, src: Addr) -> u8 {
-        let addr = self.read_addr(gb, src);
-        gb.read8(addr)
+    fn read8(&mut self, pe: &mut Peripherals, src: Addr) -> u8 {
+        let addr = self.read_addr(pe, src);
+        pe.read8(addr)
     }
 }
 
 impl Out8<Addr> for Cpu {
-    fn write8(&mut self, gb: &mut Gameboy, dst: Addr, value: u8) {
-        let addr = self.read_addr(gb, dst);
-        gb.write8(addr, value)
+    fn write8(&mut self, pe: &mut Peripherals, dst: Addr, value: u8) {
+        let addr = self.read_addr(pe, dst);
+        pe.write8(addr, value)
     }
 }
 
 impl In16<SP> for Cpu {
-    fn read16(&mut self, _: &mut Gameboy, _: SP) -> u16 {
+    fn read16(&mut self, _: &mut Peripherals, _: SP) -> u16 {
         self.regs.sp
     }
 }
 
 impl Out16<SP> for Cpu {
-    fn write16(&mut self, _: &mut Gameboy, _: SP, value: u16) {
+    fn write16(&mut self, _: &mut Peripherals, _: SP, value: u16) {
         self.regs.sp = value;
     }
 }
 
 impl In8<Imm8> for Cpu {
-    fn read8(&mut self, gb: &mut Gameboy, _: Imm8) -> u8 {
-        self.fetch8(gb)
+    fn read8(&mut self, pe: &mut Peripherals, _: Imm8) -> u8 {
+        self.fetch8(pe)
     }
 }
 
 impl In16<Imm16> for Cpu {
-    fn read16(&mut self, gb: &mut Gameboy, _: Imm16) -> u16 {
-        self.fetch16(gb)
+    fn read16(&mut self, pe: &mut Peripherals, _: Imm16) -> u16 {
+        self.fetch16(pe)
     }
 }
 

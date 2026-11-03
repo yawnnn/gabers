@@ -24,6 +24,7 @@ fn main() {
     let rom = args.next().expect("Missing path to ROM file");
     let bootrom = args.next();
     let bootrom = bootrom.as_deref();
+
     let mut gb = Gameboy::new(rom, bootrom);
-    gb.main_loop();
+    gb.game_loop();
 }

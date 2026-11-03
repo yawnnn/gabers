@@ -1,4 +1,4 @@
-use crate::gameboy::Gameboy;
+use crate::gameboy::*;
 
 /// 16 KiB ROM bank 00 (From cartridge, usually a fixed bank) + 16 KiB ROM Bank 01–NN (From cartridge, switchable bank via mapper (if any))
 macro_rules! rom_range {
@@ -122,7 +122,7 @@ macro_rules! ie_addr {
     };
 }
 
-impl Gameboy {
+impl Peripherals {
     pub fn read8(&self, addr: u16) -> u8 {
         if self.in_dma_transfer() && !hram_range!().contains(&addr) {
             return 0xFF;
