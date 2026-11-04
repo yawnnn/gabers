@@ -25,6 +25,6 @@ fn main() {
     let bootrom = args.next();
     let bootrom = bootrom.as_deref();
 
-    let mut gb = Gameboy::new(rom, bootrom);
+    let mut gb = Gameboy::new_with_screen(rom, bootrom);
     gb.game_loop();
 }
