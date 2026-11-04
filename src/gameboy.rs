@@ -204,7 +204,7 @@ pub struct Gameboy {
 impl Gameboy {
     pub fn new_with_screen(cartridge_path: impl AsRef<Path>, bootrom: Option<&str>) -> Self {
         let (pe, cpu) =
-            new_pheriperals_and_cpu(cartridge_path, bootrom, Rc::new(RefCell::new(NullIo)));
+            new_pheriperals_and_cpu(cartridge_path, bootrom, Rc::new(RefCell::new(NoSerialCableIo)));
         let screen = Screen::new(&pe.cartridge.title);
         Gameboy {
             pe,

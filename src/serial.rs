@@ -51,15 +51,21 @@ pub trait Rw: io::Read + io::Write {
 
 impl<T: io::Read + io::Write> Rw for T {}
 
-pub struct NullIo;
+pub struct NoSerialCableIo;
 
-impl io::Read for NullIo {
-    fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
-        Ok(0xFF) // value when cable is disconnected
+impl io::Read for NoSerialCableIo {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match buf.get_mut(0) {
+            Some(b) => {
+                *b = 0xFF; // value when cable is disconnected 
+                Ok(1)
+            }
+            _ => Err(io::Error::other("Empty buffer")),
+        }
     }
 }
 
-impl io::Write for NullIo {
+impl io::Write for NoSerialCableIo {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         Ok(buf.len())
     }
@@ -112,7 +118,7 @@ impl Serial {
 
         for _ in 0..(self.bits_sent() - prev) {
             io.send(self.data >> 7);
-            self.data = (self.data << 1) | io.recv()
+            self.data = (self.data << 1) | (io.recv() & 1)
         }
 
         if self.bits_sent() >= 8 {
