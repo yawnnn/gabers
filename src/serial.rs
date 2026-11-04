@@ -1,6 +1,8 @@
 use std::{
+    cell::RefCell,
     io,
     ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 use crate::{
@@ -67,15 +69,17 @@ impl io::Write for NullIo {
     }
 }
 
+pub type SerialIo = Rc<RefCell<dyn Rw>>;
+
 pub struct Serial {
     data: u8,               // SB: Serial transfer data
     control: SerialControl, // SC: Serial transfer control
     progress: TCycle,
-    io: Box<dyn Rw>,
+    io: SerialIo,
 }
 
 impl Serial {
-    pub fn new(io: Box<dyn Rw>) -> Self {
+    pub fn new(io: SerialIo) -> Self {
         Serial {
             data: 0,
             control: SerialControl(0),
@@ -104,9 +108,11 @@ impl Serial {
 
         let prev = self.bits_sent();
         self.progress += cycles;
+        let mut io = self.io.borrow_mut();
+
         for _ in 0..(self.bits_sent() - prev) {
-            self.io.send(self.data >> 7);
-            self.data = (self.data << 1) | self.io.recv()
+            io.send(self.data >> 7);
+            self.data = (self.data << 1) | io.recv()
         }
 
         if self.bits_sent() >= 8 {

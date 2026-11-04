@@ -1,5 +1,7 @@
 use minifb::{Key, Window, WindowOptions};
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::cartridge::Cartridge;
 use crate::common::*;
@@ -122,7 +124,7 @@ impl Gameboy {
             inter: Interrupts::new(),
             joypad: Joypad::default(),
             timer: Timer::new(),
-            serial: Serial::new(Box::new(NullIo)),
+            serial: Serial::new(Rc::new(RefCell::new(NullIo))),
             wram: boxed_1d(),
             hram: boxed_1d(),
             dma_transfer: None,
