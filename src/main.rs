@@ -1,22 +1,8 @@
 #![feature(const_trait_impl)]
 
-mod cartridge;
-mod common;
-mod cpu;
-mod decode;
-mod gameboy;
-mod instructions;
-mod interrupt;
-mod joypad;
-mod mmu;
-mod ppu;
-mod registers;
-mod serial;
-mod timer;
-
 use std::env;
 
-use crate::gameboy::Gameboy;
+use gabers::Gameboy;
 
 fn main() {
     env_logger::init();

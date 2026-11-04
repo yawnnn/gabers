@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::gameboy::*;
+use crate::*;
 use crate::registers::*;
 
 pub enum Condition {

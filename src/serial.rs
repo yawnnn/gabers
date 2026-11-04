@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    gameboy::{SYSTEM_CLOCK, TCycle},
+    SYSTEM_CLOCK, TCycle,
     interrupt::{InterruptFlags, Interrupts},
 };
 

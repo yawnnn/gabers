@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::common::*;
-use crate::gameboy::*;
+use crate::*;
 use crate::interrupt::*;
 use crate::mmu::{oam_range, tilemaps_range, tiles_range};
 

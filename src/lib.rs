@@ -1,17 +1,34 @@
-use minifb::{Key, Window, WindowOptions};
+#![feature(const_trait_impl)]
+
+mod cartridge;
+mod common;
+mod cpu;
+mod decode;
+mod instructions;
+mod interrupt;
+mod joypad;
+mod mmu;
+mod ppu;
+mod registers;
+mod timer;
+
+pub mod serial;
+
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::cartridge::Cartridge;
-use crate::common::*;
-use crate::cpu::Cpu;
-use crate::interrupt::*;
-use crate::joypad::{Joypad, JoypadKey};
-use crate::mmu::*;
-use crate::ppu::*;
-use crate::serial::*;
-use crate::timer::Timer;
+use cartridge::Cartridge;
+use common::*;
+use cpu::Cpu;
+use interrupt::*;
+use joypad::{Joypad, JoypadKey};
+use mmu::*;
+use ppu::*;
+use serial::*;
+use timer::Timer;
+
+use minifb::{Key, Window, WindowOptions};
 
 pub const SCREEN_W: usize = 160;
 pub const SCREEN_H: usize = 144;
@@ -65,7 +82,7 @@ impl Iterator for DmaTransfer {
     }
 }
 
-pub struct Screen {
+struct Screen {
     window: Window,
     buf: Box<[u32; SCREEN_W * SCREEN_H * SCREEN_SCALE]>,
 }
@@ -172,7 +189,7 @@ impl Peripherals {
     }
 }
 
-fn new_pheriperals_and_cpu(
+fn new_peripherals_and_cpu(
     cartridge_path: impl AsRef<Path>,
     bootrom: Option<&str>,
     serial_io: SerialIo,
@@ -196,15 +213,15 @@ fn new_pheriperals_and_cpu(
 }
 
 pub struct Gameboy {
-    pub pe: Peripherals,
-    pub cpu: Cpu,
+    pe: Peripherals,
+    cpu: Cpu,
     screen: Option<Screen>,
 }
 
 impl Gameboy {
     pub fn new_with_screen(cartridge_path: impl AsRef<Path>, bootrom: Option<&str>) -> Self {
         let (pe, cpu) =
-            new_pheriperals_and_cpu(cartridge_path, bootrom, Rc::new(RefCell::new(NoSerialCableIo)));
+            new_peripherals_and_cpu(cartridge_path, bootrom, Rc::new(RefCell::new(NoSerialCableIo)));
         let screen = Screen::new(&pe.cartridge.title);
         Gameboy {
             pe,
@@ -213,13 +230,12 @@ impl Gameboy {
         }
     }
 
-    #[allow(unused)]
     pub fn new_headless(
         cartridge_path: impl AsRef<Path>,
         bootrom: Option<&str>,
         serial_io: SerialIo,
     ) -> Self {
-        let (pe, cpu) = new_pheriperals_and_cpu(cartridge_path, bootrom, serial_io);
+        let (pe, cpu) = new_peripherals_and_cpu(cartridge_path, bootrom, serial_io);
         Gameboy {
             pe,
             cpu,

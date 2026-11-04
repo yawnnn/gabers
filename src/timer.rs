@@ -1,6 +1,6 @@
 use crate::{
-    gameboy::*,
     interrupt::{InterruptFlags, Interrupts},
+    SYSTEM_CLOCK, TCycle,
 };
 
 const DIV_CLOCK: usize = 16_384;

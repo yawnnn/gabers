@@ -1,6 +1,6 @@
 use crate::common::*;
 use crate::cpu::*;
-use crate::gameboy::*;
+use crate::*;
 use crate::registers::*;
 
 impl Cpu {

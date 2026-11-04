@@ -1,5 +1,5 @@
 use crate::cpu::*;
-use crate::gameboy::*;
+use crate::*;
 use crate::registers::{Reg8::*, Reg16::*, SP};
 
 //  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
