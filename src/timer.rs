@@ -1,6 +1,6 @@
 use crate::{
-    interrupt::{InterruptFlags, Interrupts},
     SYSTEM_CLOCK, TCycle,
+    interrupt::{InterruptFlags, Interrupts},
 };
 
 const DIV_CLOCK: usize = 16_384;

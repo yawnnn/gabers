@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::common::*;
-use crate::*;
 use crate::interrupt::*;
 use crate::mmu::{oam_range, tilemaps_range, tiles_range};
+use crate::*;
 
 const TILES_START: u16 = *tiles_range!().start() as u16;
 const TILE_SIDE: usize = 8; // 8x8 square

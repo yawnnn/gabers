@@ -1,7 +1,7 @@
 use crate::common::*;
 use crate::cpu::*;
-use crate::*;
 use crate::registers::*;
+use crate::*;
 
 impl Cpu {
     /*
