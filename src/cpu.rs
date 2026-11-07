@@ -1,6 +1,12 @@
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+use std::fs;
+use std::path::Path;
+
 use crate::common::*;
-use crate::*;
 use crate::registers::*;
+use crate::*;
 
 pub enum Condition {
     CF,
@@ -138,6 +144,7 @@ impl Cpu {
             return 1; // NOP
         }
 
+        update_stack_trace(self, pe);
         let opcode = self.fetch8(pe);
         let cycles = self.decode_exec(pe, opcode);
 
@@ -382,3 +389,202 @@ impl<T> Io8<T> for Cpu where Cpu: In8<T> + Out8<T> {}
 pub trait Io16<T>: In16<T> + Out16<T> {}
 
 impl<T> Io16<T> for Cpu where Cpu: In16<T> + Out16<T> {}
+
+#[allow(unused)]
+#[derive(Default, Clone, Copy)]
+pub struct StackState {
+    pc: u16,
+    sp: u16,
+    fetch0: u8,
+    fetch1: u8,
+    fetch2: u8,
+    af: u16,
+    bc: u16,
+    de: u16,
+    hl: u16,
+    ime: bool,
+    ie: u8,
+    iff: u8,
+}
+
+impl StackState {
+    fn new(cpu: &Cpu, pe: &Peripherals) -> Self {
+        StackState {
+            pc: cpu.regs.pc,
+            sp: cpu.regs.sp,
+            fetch0: pe.read8(cpu.regs.pc),
+            fetch1: pe.read8(cpu.regs.pc.wrapping_add(1)),
+            fetch2: pe.read8(cpu.regs.pc.wrapping_add(2)),
+            af: cpu.get_reg16(Reg16::AF),
+            bc: cpu.get_reg16(Reg16::BC),
+            de: cpu.get_reg16(Reg16::DE),
+            hl: cpu.get_reg16(Reg16::HL),
+            ime: cpu.ime,
+            ie: pe.inter.enable,
+            iff: *pe.inter.flags,
+        }
+    }
+
+    /// return the instruction description + the first 1 byte following it
+    fn get_instruction_str(&self) -> String {
+        // yeah, i'm doing this...
+        const DECODE_SRC: &str = include_str!("decode.rs");
+        const FN_MARKER: &str = " fn ";
+
+        let inner = |code: u8, is_cb: bool| {
+            let (_, rest) = DECODE_SRC.split_once(FN_MARKER)?;
+            let (src_nocb, src_cb) = rest.split_once(FN_MARKER)?;
+            let src = if is_cb { src_cb } else { src_nocb };
+            let (_, rest) = src.split_once(&format!("{code:02X} => self."))?;
+            let (desc, _) = rest.split_once('\n')?;
+            let desc = desc.trim().strip_suffix(",")?;
+            Some(desc)
+        };
+
+        let is_cb = self.fetch0 == 0xCB;
+        let idx = is_cb as usize;
+        let fetches = [self.fetch0, self.fetch1, self.fetch2];
+        let desc = inner(fetches[idx], is_cb)
+            .map(String::from)
+            .unwrap_or(format!("{:02X}", fetches[idx]));
+        format!("{desc} [{:02X}]", fetches[idx + 1])
+    }
+}
+
+impl Debug for StackState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let instruction = self.get_instruction_str();
+        write!(
+            f,
+            "PC: {:04X}, SP: {:04X}, I: {instruction}, AF: {:04X}, BC: {:04X}, DE: {:04X}, HL: {:04X}, ime: {}, IE: {:02X}, IF: {:02X}",
+            self.pc, self.sp, self.af, self.bc, self.de, self.hl, self.ime as u8, self.ie, self.iff
+        )
+    }
+}
+
+impl PartialEq for StackState {
+    fn eq(&self, other: &Self) -> bool {
+        self.pc == other.pc
+            && self.fetch0 == other.fetch0
+            && self.fetch1 == other.fetch1
+            && self.fetch2 == other.fetch2
+            && self.af == other.af
+            && self.bc == other.bc
+            && self.de == other.de
+            && self.hl == other.hl
+            && self.ime == other.ime
+            && self.ie == other.ie
+            && self.iff == other.iff
+    }
+}
+
+#[derive(Default)]
+pub struct StackTrace {
+    labels: BTreeMap<u16, String>,
+    trace: [Option<(StackState, u64)>; 8],
+    cursor: usize,
+}
+
+impl StackTrace {
+    /// parse labels found in `.sym` corresponding file
+    fn load_rom_labels(cartridge_path: &Path) -> BTreeMap<u16, String> {
+        let sym_path = cartridge_path.with_extension("sym");
+        let Ok(content) = fs::read_to_string(&sym_path) else {
+            return BTreeMap::new();
+        };
+
+        let mut in_labels = false;
+        content
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if line.starts_with('[') {
+                    in_labels = line == "[labels]";
+                    return None;
+                }
+
+                if !in_labels {
+                    return None;
+                }
+
+                // "BANK:ADDR LABEL"
+                let (bank_and_addr, label) = line.split_once(' ')?;
+                let (_, saddr) = bank_and_addr.split_once(':')?;
+                let addr = u16::from_str_radix(saddr, 16).ok()?;
+                Some((addr, label.into()))
+            })
+            .collect()
+    }
+
+    /// closest label to `pc`
+    #[allow(unused)]
+    fn lookup_label(&self, pc: u16) -> Option<(u16, &str)> {
+        self.labels
+            .range(..=pc)
+            .next_back()
+            .map(|(&addr, label)| (addr, label.as_str()))
+    }
+
+    fn format_trace(&self, stack: &StackState, count: u64) -> String {
+        //let label_info = self
+        //    .lookup_label(stack.pc)
+        //    .map(|(addr, label)| format!(" ({label}+{:#X})", stack.pc - addr))
+        //    .unwrap_or_default();
+        let label_info = String::new();
+        let count = if count > 1 {
+            format!(" [{count}]")
+        } else {
+            String::new()
+        };
+        format!("{stack:?}{label_info}{count}")
+    }
+
+    fn push(&mut self, stack: StackState) {
+        self.trace[self.cursor] = Some((stack, 1));
+        self.cursor = (self.cursor + 1) % self.trace.len();
+    }
+
+    fn last(&mut self) -> &mut Option<(StackState, u64)> {
+        let idx = self.cursor.checked_sub(1).unwrap_or(self.trace.len() - 1);
+        &mut self.trace[idx]
+    }
+
+    fn traces(&self) -> impl Iterator<Item = &(StackState, u64)> {
+        let len = self.trace.len();
+        (0..len).filter_map(move |i| self.trace[(self.cursor + i) % len].as_ref())
+    }
+}
+
+thread_local! {
+    pub static STACK_TRACE: RefCell<StackTrace> = RefCell::new(StackTrace::default());
+}
+
+pub fn init_stack_tracing(cartridge_path: &Path) {
+    STACK_TRACE.with_borrow_mut(|st| {
+        st.labels = StackTrace::load_rom_labels(cartridge_path);
+    });
+
+    // set panic hook to print gameboy stack trace too
+    std::panic::set_hook(Box::new(|panic_info| {
+        eprintln!("{panic_info}");
+        STACK_TRACE.with_borrow(|st| {
+            eprintln!("--- stack trace ---");
+            for (stack, count) in st.traces() {
+                eprintln!("{}", st.format_trace(stack, *count));
+            }
+        });
+    }));
+}
+
+fn update_stack_trace(cpu: &Cpu, pe: &Peripherals) {
+    STACK_TRACE.with_borrow_mut(|st| {
+        let stack = StackState::new(cpu, pe);
+        if let Some(last) = st.last()
+            && last.0 == stack
+        {
+            last.1 += 1;
+        } else {
+            st.push(stack);
+        }
+    })
+}

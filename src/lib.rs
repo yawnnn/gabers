@@ -20,7 +20,7 @@ use std::rc::Rc;
 
 use cartridge::Cartridge;
 use common::*;
-use cpu::Cpu;
+use cpu::*;
 use interrupt::*;
 use joypad::{Joypad, JoypadKey};
 use mmu::*;
@@ -209,6 +209,8 @@ fn new_peripherals_and_cpu(
     };
     let cpu = Cpu::new(bootrom.is_some(), pe.cartridge.checksum);
 
+    init_stack_tracing(cartridge_path.as_ref());
+
     (pe, cpu)
 }
 
@@ -220,8 +222,11 @@ pub struct Gameboy {
 
 impl Gameboy {
     pub fn new_with_screen(cartridge_path: impl AsRef<Path>, bootrom: Option<&str>) -> Self {
-        let (pe, cpu) =
-            new_peripherals_and_cpu(cartridge_path, bootrom, Rc::new(RefCell::new(NoSerialCableIo)));
+        let (pe, cpu) = new_peripherals_and_cpu(
+            cartridge_path,
+            bootrom,
+            Rc::new(RefCell::new(NoSerialCableIo)),
+        );
         let screen = Screen::new(&pe.cartridge.title);
         Gameboy {
             pe,
