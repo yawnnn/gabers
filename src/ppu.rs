@@ -464,10 +464,6 @@ impl Ppu {
         }
     }
 
-    pub fn write8_oam_unchecked(&mut self, pos: usize, val: u8) {
-        self.oam.set_1to2(pos, val);
-    }
-
     pub fn read8(&self, addr: u16) -> u8 {
         match addr {
             tiles_range!() if self.vram_access() => *self.tiles.get_1to3(addr - TILES_START),

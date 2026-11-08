@@ -55,16 +55,13 @@ impl ToTCycle for MCycle {
 
 #[derive(Default, Clone, Copy)]
 struct DmaTransfer {
-    addr: u16,
-    pos: usize,
+    start: u8,
+    progress: u16,
 }
 
 impl DmaTransfer {
     fn new(start: u8) -> Self {
-        DmaTransfer {
-            addr: (start as u16) << 8,
-            pos: 0,
-        }
+        DmaTransfer { start, progress: 0 }
     }
 }
 
@@ -72,12 +69,11 @@ impl Iterator for DmaTransfer {
     type Item = Self;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= std::mem::size_of::<Oam>() {
+        if self.progress as usize >= std::mem::size_of::<Oam>() {
             return None;
         }
         let val = *self;
-        self.addr = self.addr.wrapping_add(1);
-        self.pos += 1;
+        self.progress += 1;
         Some(val)
     }
 }
@@ -179,10 +175,12 @@ impl Peripherals {
 
     fn tick_dma_transfer(&mut self, cycles: MCycle) {
         if let Some(dma_transfer) = self.dma_transfer {
+            let src_start = (dma_transfer.start as u16) << 8;
+            let oam_start = oam_range!().start();
             let mut it = dma_transfer.take(cycles as usize);
-            for dma_transfer in &mut it {
-                let val = self.read8(dma_transfer.addr);
-                self.ppu.write8_oam_unchecked(dma_transfer.pos, val);
+            for dma in &mut it {
+                let val = self.read8_unchecked(src_start + dma.progress);
+                self.write8_unchecked(oam_start + dma.progress, val);
             }
             self.dma_transfer = it.next();
         }

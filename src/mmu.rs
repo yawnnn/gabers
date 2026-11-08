@@ -123,11 +123,7 @@ macro_rules! ie_addr {
 }
 
 impl Peripherals {
-    pub fn read8(&self, addr: u16) -> u8 {
-        if self.in_dma_transfer() && !hram_range!().contains(&addr) {
-            return 0xFF;
-        }
-
+    pub fn read8_unchecked(&self, addr: u16) -> u8 {
         match addr {
             rom_range!() => self.cartridge.read8(addr),
             tiles_range!() => self.ppu.read8(addr),
@@ -142,7 +138,7 @@ impl Peripherals {
             if_addr!() => *self.inter.flags,
             audio_range!() => 0xFF, // TODO
             lcd_range!() => self.ppu.read8(addr),
-            dma_addr!() => 0xFF,
+            dma_addr!() => self.dma_transfer.map(|dma| dma.start).unwrap_or(0xFF),
             palette_range!() => self.ppu.read8(addr),
             window_range!() => self.ppu.read8(addr),
             unmap_bootrom_addr!() => 0xFF,
@@ -152,11 +148,14 @@ impl Peripherals {
         }
     }
 
-    pub fn write8(&mut self, addr: u16, val: u8) {
+    pub fn read8(&self, addr: u16) -> u8 {
         if self.in_dma_transfer() && !hram_range!().contains(&addr) {
-            return;
+            return 0xFF;
         }
+        self.read8_unchecked(addr)
+    }
 
+    pub fn write8_unchecked(&mut self, addr: u16, val: u8) {
         match addr {
             rom_range!() => self.cartridge.write8(addr, val),
             tiles_range!() => self.ppu.write8(addr, val),
@@ -179,6 +178,13 @@ impl Peripherals {
             ie_addr!() => self.inter.enable = val,
             _ => (),
         }
+    }
+
+    pub fn write8(&mut self, addr: u16, val: u8) {
+        if self.in_dma_transfer() && !hram_range!().contains(&addr) {
+            return;
+        }
+        self.write8_unchecked(addr, val);
     }
 
     pub fn read16(&self, addr: u16) -> u16 {
