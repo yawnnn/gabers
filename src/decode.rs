@@ -44,6 +44,7 @@ const CB_CYCLES: [MCycle; 256] = [
 
 impl Cpu {
     pub fn decode_exec(&mut self, pe: &mut Peripherals, opcode: u8) -> MCycle {
+        let mut extra = 0;
         match opcode {
             // --- 8-bit operations
             // 8-bit loads
@@ -232,22 +233,6 @@ impl Cpu {
             0xCD => self.call16(pe),
             0xC9 => self.ret(pe),
             0xD9 => self.reti(pe),
-            0xC2 => self.jump16_cc(pe, Condition::NoZF),
-            0xCA => self.jump16_cc(pe, Condition::ZF),
-            0xD2 => self.jump16_cc(pe, Condition::NoCF),
-            0xDA => self.jump16_cc(pe, Condition::CF),
-            0x20 => self.jumpr8_cc(pe, Condition::NoZF),
-            0x28 => self.jumpr8_cc(pe, Condition::ZF),
-            0x30 => self.jumpr8_cc(pe, Condition::NoCF),
-            0x38 => self.jumpr8_cc(pe, Condition::CF),
-            0xC4 => self.call16_cc(pe, Condition::NoZF),
-            0xCC => self.call16_cc(pe, Condition::ZF),
-            0xD4 => self.call16_cc(pe, Condition::NoCF),
-            0xDC => self.call16_cc(pe, Condition::CF),
-            0xC0 => self.ret_cc(pe, Condition::NoZF),
-            0xC8 => self.ret_cc(pe, Condition::ZF),
-            0xD0 => self.ret_cc(pe, Condition::NoCF),
-            0xD8 => self.ret_cc(pe, Condition::CF),
             0xC7 => self.rst(pe, 0x00),
             0xCF => self.rst(pe, 0x08),
             0xD7 => self.rst(pe, 0x10),
@@ -256,6 +241,23 @@ impl Cpu {
             0xEF => self.rst(pe, 0x28),
             0xF7 => self.rst(pe, 0x30),
             0xFF => self.rst(pe, 0x38),
+            // --- Conditional jumps/calls/returns
+            0xC2 => self.jump16_cc(pe, Condition::NoZF, &mut extra),
+            0xCA => self.jump16_cc(pe, Condition::ZF, &mut extra),
+            0xD2 => self.jump16_cc(pe, Condition::NoCF, &mut extra),
+            0xDA => self.jump16_cc(pe, Condition::CF, &mut extra),
+            0x20 => self.jumpr8_cc(pe, Condition::NoZF, &mut extra),
+            0x28 => self.jumpr8_cc(pe, Condition::ZF, &mut extra),
+            0x30 => self.jumpr8_cc(pe, Condition::NoCF, &mut extra),
+            0x38 => self.jumpr8_cc(pe, Condition::CF, &mut extra),
+            0xC4 => self.call16_cc(pe, Condition::NoZF, &mut extra),
+            0xCC => self.call16_cc(pe, Condition::ZF, &mut extra),
+            0xD4 => self.call16_cc(pe, Condition::NoCF, &mut extra),
+            0xDC => self.call16_cc(pe, Condition::CF, &mut extra),
+            0xC0 => self.ret_cc(pe, Condition::NoZF, &mut extra),
+            0xC8 => self.ret_cc(pe, Condition::ZF, &mut extra),
+            0xD0 => self.ret_cc(pe, Condition::NoCF, &mut extra),
+            0xD8 => self.ret_cc(pe, Condition::CF, &mut extra),
             // --- Miscellaneous
             0x76 => self.halt(pe),
             0x10 => self.stop(pe),
@@ -305,7 +307,7 @@ impl Cpu {
                 panic!("Unexpected instruction");
             }
         }
-        OP_CYCLES[opcode as usize]
+        OP_CYCLES[opcode as usize] + extra
     }
 
     fn decode_exec_cb(&mut self, pe: &mut Peripherals, opcode_cb: u8) -> MCycle {

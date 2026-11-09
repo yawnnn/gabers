@@ -613,12 +613,14 @@ impl Cpu {
     }
 
     // CALL cond, n16
+    // CALL cond, nn
     // Z N H C
     // - - - -
-    pub fn call16_cc(&mut self, pe: &mut Peripherals, cond: Condition) {
+    pub fn call16_cc(&mut self, pe: &mut Peripherals, cond: Condition, extra: &mut MCycle) {
         let addr = self.fetch16(pe);
         if self.check_condition(cond) {
             self.call(pe, addr);
+            *extra = 3;
         }
     }
 
@@ -637,10 +639,11 @@ impl Cpu {
     // JP cond, n16
     // Z N H C
     // - - - -
-    pub fn jump16_cc(&mut self, pe: &mut Peripherals, cond: Condition) {
+    pub fn jump16_cc(&mut self, pe: &mut Peripherals, cond: Condition, extra: &mut MCycle) {
         let addr = self.fetch16(pe);
         if self.check_condition(cond) {
             self.jump_abs(addr);
+            *extra = 1;
         }
     }
 
@@ -652,22 +655,24 @@ impl Cpu {
         self.jump_rel(offset);
     }
 
-    // JR cond, n16
+    // JR cond, e
     // Z N H C
     // - - - -
-    pub fn jumpr8_cc(&mut self, pe: &mut Peripherals, cond: Condition) {
+    pub fn jumpr8_cc(&mut self, pe: &mut Peripherals, cond: Condition, extra: &mut MCycle) {
         let offset = self.fetch8(pe) as i8;
         if self.check_condition(cond) {
             self.jump_rel(offset);
+            *extra = 1;
         }
     }
 
     // RET cond
     // Z N H C
     // - - - -
-    pub fn ret_cc(&mut self, pe: &mut Peripherals, cond: Condition) {
+    pub fn ret_cc(&mut self, pe: &mut Peripherals, cond: Condition, extra: &mut MCycle) {
         if self.check_condition(cond) {
             self.ret(pe);
+            *extra = 3;
         }
     }
 
